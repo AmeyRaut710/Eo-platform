@@ -1,0 +1,76 @@
+Metadata-Version: 2.1
+Name: titiler.application
+Version: 0.18.3
+Summary: A modern dynamic tile server built on top of FastAPI and Rasterio/GDAL.
+License: MIT
+Keywords: COG,STAC,MosaicJSON,Fastapi,Dynamic tile server,GDAL,Rasterio,OGC
+Author-email: Vincent Sarago <vincent@developmentseed.com>
+Requires-Python: >=3.8
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Topic :: Scientific/Engineering :: GIS
+Requires-Dist: pydantic-settings~=2.0
+Requires-Dist: starlette-cramjam<0.4,>=0.3
+Requires-Dist: titiler.core==0.18.3
+Requires-Dist: titiler.extensions[cogeo,stac]==0.18.3
+Requires-Dist: titiler.mosaic==0.18.3
+Provides-Extra: server
+Requires-Dist: uvicorn[standard]<0.19.0,>=0.12.0; extra == "server"
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-asyncio; extra == "test"
+Requires-Dist: httpx; extra == "test"
+Requires-Dist: brotlipy; extra == "test"
+Requires-Dist: boto3; extra == "test"
+Project-URL: Changelog, https://developmentseed.org/titiler/release-notes/
+Project-URL: Documentation, https://developmentseed.org/titiler/
+Project-URL: Homepage, https://developmentseed.org/titiler/
+Project-URL: Issues, https://github.com/developmentseed/titiler/issues
+Project-URL: Source, https://github.com/developmentseed/titiler
+Description-Content-Type: text/markdown
+
+## titiler.application
+
+<img style="max-width:400px" src="https://user-images.githubusercontent.com/10407788/115224800-53d9d980-a0db-11eb-86c3-1c94fde3ed4a.png"/>
+<p align="center">Titiler's demo application.</p>
+
+## Installation
+
+```bash
+$ python -m pip install -U pip
+
+# From Pypi
+$ python -m pip install titiler.application
+
+# Or from sources
+$ git clone https://github.com/developmentseed/titiler.git
+$ cd titiler && python -m pip install -e src/titiler/core -e src/titiler/extensions -e src/titiler/mosaic -e src/titiler/application
+```
+
+Launch Application
+```bash
+$ python -m pip install uvicorn
+$ uvicorn titiler.application.main:app --reload
+```
+
+## Package structure
+
+```
+titiler/
+ └── application/
+    ├── tests/                   - Tests suite
+    └── titiler/application/     - `application` namespace package
+        ├── templates/
+        |   └── index.html       - Landing page
+        ├── main.py              - Main FastAPI application
+        └── settings.py          - demo settings (cache, cors...)
+```
+

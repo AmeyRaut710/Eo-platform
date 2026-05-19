@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EO Platform — Hyderabad</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+
+  <!-- ─── TOP BAR ───────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar__brand">
+      <span class="topbar__icon">◈</span>
+      <span class="topbar__title">EO<strong>Platform</strong></span>
+      <span class="topbar__sub">Hyderabad · Sentinel-2</span>
+    </div>
+
+    <div class="topbar__search">
+      <input id="searchInput" type="text" placeholder="Search area…  (e.g. HITEC City, Charminar)" />
+      <button id="searchBtn">GO</button>
+    </div>
+
+    <div class="topbar__actions">
+      <button class="pill-btn" id="btnProcess" title="Trigger COG conversion">
+        ⚙ Process
+      </button>
+      <button class="pill-btn active" id="btnSatellite">Satellite</button>
+      <button class="pill-btn" id="btnStreet">Streets</button>
+      <button class="pill-btn" id="btnNDVI">NDVI</button>
+    </div>
+  </header>
+
+  <!-- ─── MAIN LAYOUT ───────────────────────────────────────────────────────── -->
+  <main class="layout">
+
+    <!-- MAP -->
+    <div id="map"></div>
+
+    <!-- SIDE PANEL -->
+    <aside class="panel">
+
+      <!-- Status card -->
+      <div class="card" id="cardStatus">
+        <div class="card__header">
+          <span class="card__dot" id="statusDot"></span>
+          SYSTEM STATUS
+        </div>
+        <div class="card__body" id="statusBody">
+          <div class="stat-row"><span>Backend</span><span class="badge" id="badgeBackend">—</span></div>
+          <div class="stat-row"><span>TiTiler</span><span class="badge" id="badgeTitiler">—</span></div>
+          <div class="stat-row"><span>Input TIF</span><span class="badge" id="badgeInput">—</span></div>
+          <div class="stat-row"><span>COG File</span><span class="badge" id="badgeCOG">—</span></div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div class="status-msg" id="statusMsg">Checking…</div>
+        </div>
+      </div>
+
+      <!-- Metadata card -->
+      <div class="card" id="cardMeta">
+        <div class="card__header">◈ COG METADATA</div>
+        <div class="card__body" id="metaBody">
+          <div class="stat-row"><span>Width</span><span id="metaWidth">—</span></div>
+          <div class="stat-row"><span>Height</span><span id="metaHeight">—</span></div>
+          <div class="stat-row"><span>Bands</span><span id="metaBands">—</span></div>
+          <div class="stat-row"><span>CRS</span><span id="metaCRS">—</span></div>
+          <div class="stat-row"><span>Size</span><span id="metaSize">—</span></div>
+          <div class="stat-row"><span>Overviews</span><span id="metaOvr">—</span></div>
+          <div class="stat-row"><span>Center</span><span id="metaCenter">—</span></div>
+        </div>
+      </div>
+
+      <!-- Zoom info card -->
+      <div class="card">
+        <div class="card__header">⬡ MAP INFO</div>
+        <div class="card__body">
+          <div class="stat-row"><span>Zoom Level</span><span id="zoomLevel">—</span></div>
+          <div class="stat-row"><span>Lat</span><span id="cursorLat">—</span></div>
+          <div class="stat-row"><span>Lon</span><span id="cursorLon">—</span></div>
+        </div>
+      </div>
+
+      <!-- Pyramid visualization -->
+      <div class="card">
+        <div class="card__header">△ PYRAMID LEVELS</div>
+        <div class="card__body">
+          <div class="pyramid" id="pyramidViz">
+            <div class="pyr-level" data-zoom="0-5">Level 0 — Thumbnail</div>
+            <div class="pyr-level" data-zoom="6-10">Level 1 — Overview</div>
+            <div class="pyr-level" data-zoom="11-14">Level 2 — Mid-res</div>
+            <div class="pyr-level" data-zoom="15-18">Level 3 — Full res</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layer legend -->
+      <div class="card">
+        <div class="card__header">▦ ABOUT</div>
+        <div class="card__body about-text">
+          <p>COG + TiTiler satellite viewer for the Hyderabad region.
+            Uses dynamic HTTP Range Requests for tile loading — only
+            visible 256×256 tiles are fetched.</p>
+          <p class="tech-stack">FastAPI · TiTiler · GDAL · Rasterio · Leaflet</p>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ─── TOAST ─────────────────────────────────────────────────────────────── -->
+  <div id="toast" class="toast"></div>
+
+  <!-- ─── SCRIPTS ───────────────────────────────────────────────────────────── -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+
+</html>

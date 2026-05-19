@@ -1,0 +1,106 @@
+Metadata-Version: 2.1
+Name: titiler.core
+Version: 0.18.3
+Summary: A modern dynamic tile server built on top of FastAPI and Rasterio/GDAL.
+License: MIT
+Keywords: COG,STAC,MosaicJSON,Fastapi,Dynamic tile server,GDAL,Rasterio,OGC
+Author-email: Vincent Sarago <vincent@developmentseed.com>
+Requires-Python: >=3.8
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Topic :: Scientific/Engineering :: GIS
+Requires-Dist: fastapi-slim
+Requires-Dist: geojson-pydantic<2.0,>=1.0
+Requires-Dist: jinja2<4.0.0,>=2.11.2
+Requires-Dist: morecantile<6.0,>=5.0
+Requires-Dist: numpy
+Requires-Dist: pydantic~=2.0
+Requires-Dist: rasterio
+Requires-Dist: rio-tiler<7.0,>=6.3.0
+Requires-Dist: simplejson
+Requires-Dist: typing_extensions>=4.6.1
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-asyncio; extra == "test"
+Requires-Dist: httpx; extra == "test"
+Project-URL: Changelog, https://developmentseed.org/titiler/release-notes/
+Project-URL: Documentation, https://developmentseed.org/titiler/
+Project-URL: Homepage, https://developmentseed.org/titiler/
+Project-URL: Issues, https://github.com/developmentseed/titiler/issues
+Project-URL: Source, https://github.com/developmentseed/titiler
+Description-Content-Type: text/markdown
+
+## titiler.core
+
+Core of Titiler's application. Contains blocks to create dynamic tile servers.
+
+## Installation
+
+```bash
+$ python -m pip install -U pip
+
+# From Pypi
+$ python -m pip install titiler.core
+
+# Or from sources
+$ git clone https://github.com/developmentseed/titiler.git
+$ cd titiler && python -m pip install -e src/titiler/core
+```
+
+## How To
+
+```python
+from fastapi import FastAPI
+from titiler.core.factory import TilerFactory
+
+# Create a FastAPI application
+app = FastAPI(
+    description="A lightweight Cloud Optimized GeoTIFF tile server",
+)
+
+# Create a set of COG endpoints
+cog = TilerFactory()
+
+# Register the COG endpoints to the application
+app.include_router(cog.router, tags=["Cloud Optimized GeoTIFF"])
+```
+
+See [titiler.application](../application) for a full example.
+
+## Package structure
+
+```
+titiler/
+ └── core/
+    ├── tests/                   - Tests suite
+    └── titiler/core/            - `core` namespace package
+        ├── algorithm/
+        |   ├── base.py          - ABC Base Class for custom algorithms
+        |   ├── dem.py           - Elevation data related algorithms
+        |   └── index.py         - Simple band index algorithms
+        ├── models/
+        |   ├── response.py      - Titiler's response models
+        |   ├── mapbox.py        - Mapbox TileJSON pydantic model
+        |   └── OGC.py           - Open GeoSpatial Consortium pydantic models (TileMatrixSets...)
+        ├── resources/
+        |   ├── enums.py         - Titiler's enumerations (e.g MediaType)
+        |   └── responses.py     - Custom Starlette's responses
+        ├── templates/
+        |   ├── map.html         - Simple Map viewer (built with leaflet)
+        |   └── wmts.xml         - OGC WMTS document template
+        ├── dependencies.py      - Titiler FastAPI's dependencies
+        ├── errors.py            - Errors handler factory
+        ├── middleware.py        - Starlette middlewares
+        ├── factory.py           - Dynamic tiler endpoints factories
+        ├── routing.py           - Custom APIRoute class
+        └── utils.py             - Titiler utility functions
+```
+

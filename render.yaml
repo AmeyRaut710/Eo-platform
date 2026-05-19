@@ -1,0 +1,16 @@
+services:
+  - type: web_service
+    name: eo-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    plan: starter
+    region: oregon
+    autoDeploy: true
+
+  - type: web_service
+    name: eo-titiler
+    env: docker
+    dockerfilePath: backend/titiler.Dockerfile
+    plan: starter
+    region: oregon
+    autoDeploy: true

@@ -1,0 +1,11 @@
+.venv
+venv
+__pycache__
+.git
+.gitignore
+backend/.venv
+backend/__pycache__
+node_modules
+*.pyc
+.code-review-graph
+backend/data/output_cog.tif

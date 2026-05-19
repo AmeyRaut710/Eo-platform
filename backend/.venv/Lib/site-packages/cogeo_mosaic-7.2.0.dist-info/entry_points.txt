@@ -1,0 +1,2 @@
+[console_scripts]
+cogeo-mosaic = cogeo_mosaic.scripts.cli:cogeo_cli

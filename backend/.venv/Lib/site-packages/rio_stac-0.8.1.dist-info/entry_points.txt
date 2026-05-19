@@ -1,0 +1,3 @@
+[rasterio.rio_plugins]
+stac=rio_stac.scripts.cli:stac
+
