@@ -4,12 +4,11 @@ import os
 import json
 import subprocess
 import sys
-from pathlib import Path
 import urllib.parse
 
 import rasterio
 from rasterio.warp import transform_bounds
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse, Response
@@ -83,6 +82,18 @@ def api_health():
     return health()
 
 
+@app.get("/api/titiler/health", summary="TiTiler health check")
+def titiler_health():
+    try:
+        response = httpx.get(f"{TITILER_URL}/healthz", timeout=5.0)
+        return {
+            "ok": response.status_code == 200,
+            "status_code": response.status_code,
+        }
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"TiTiler health check failed: {exc}")
+
+
 
 
 @app.get("/api/status", summary="COG conversion status")
@@ -97,6 +108,16 @@ def get_status():
         ),
         **processing_status,
     }
+
+
+@app.get("/api/cog/raw", summary="Download raw COG file")
+def get_raw_cog():
+    if not os.path.exists(OUTPUT_FILE):
+        raise HTTPException(
+            status_code=404,
+            detail="COG file not found. Run POST /api/process first.",
+        )
+    return FileResponse(OUTPUT_FILE, media_type="image/tiff")
 
 
 @app.post("/api/process", summary="Trigger TIFF → COG conversion")
@@ -163,7 +184,7 @@ def get_cog_info():
 
 
 @app.get("/api/cog/tilejson", summary="TileJSON descriptor for Leaflet")
-def get_tilejson(titiler_url: str = TITILER_URL):
+def get_tilejson(request: Request, titiler_url: str = TITILER_URL):
     """
     Return a TileJSON object pointing at TiTiler.
     The frontend uses this to configure the Leaflet tile layer.
@@ -174,8 +195,8 @@ def get_tilejson(titiler_url: str = TITILER_URL):
             detail="COG file not found. Run POST /api/process first.",
         )
 
-    cog_path_uri = Path(OUTPUT_FILE).absolute().as_posix()
-    encoded_cog_url = urllib.parse.quote(cog_path_uri, safe="")
+    source_url = str(request.base_url) + "api/cog/raw"
+    encoded_cog_url = urllib.parse.quote(source_url, safe="")
 
     # Get info from TiTiler to get correct min/max zoom
     info_url = f"{titiler_url}/cog/info?url={encoded_cog_url}"
@@ -216,7 +237,7 @@ def get_tilejson(titiler_url: str = TITILER_URL):
 
 
 @app.get("/api/cog/tiles/{z}/{x}/{y}")
-def proxy_cog_tile(z: int, x: int, y: int):
+def proxy_cog_tile(request: Request, z: int, x: int, y: int):
     """Proxy a TiTiler COG tile request through the backend."""
     if not os.path.exists(OUTPUT_FILE):
         raise HTTPException(
@@ -226,11 +247,9 @@ def proxy_cog_tile(z: int, x: int, y: int):
 
     titiler_url = TITILER_URL
 
-    # Use a posix path string for TiTiler on Windows.
-    cog_path_uri = Path(OUTPUT_FILE).absolute().as_posix()
-
-    # Encode as query param value.
-    encoded_cog_url = urllib.parse.quote(cog_path_uri, safe="")
+    # TiTiler reads the publicly exposed COG file from the backend service.
+    source_url = str(request.base_url) + "api/cog/raw"
+    encoded_cog_url = urllib.parse.quote(source_url, safe="")
 
     # Some TiTiler builds support `@1x`, but if yours doesn't, tiles will fail with 500.
     # Use the plain {z}/{x}/{y} style.

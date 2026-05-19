@@ -15,7 +15,6 @@
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const BACKEND_URL  = window.location.origin;
-const TITILER_URL  = "http://localhost:8001";
 const COG_PATH     = "file:///path/to/backend/data/output_cog.tif"; // updated by /api/tilejson
 const HYDERABAD    = [17.3850, 78.4867];
 const DEFAULT_ZOOM = 10;
@@ -142,7 +141,7 @@ async function pollStatus() {
 
 async function checkTiTiler() {
   try {
-    const res = await fetch(`${TITILER_URL}/healthz`, { signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`${BACKEND_URL}/api/titiler/health`, { signal: AbortSignal.timeout(2000) });
     setBadge("badgeTitiler", res.ok ? "OK" : "Error", res.ok ? "ok" : "error");
   } catch {
     setBadge("badgeTitiler", "Offline", "error");
