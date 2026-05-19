@@ -1,5 +1,5 @@
 services:
-  - type: web_service
+  - type: webService
     name: eo-backend
     env: docker
     dockerfilePath: backend/Dockerfile
@@ -7,7 +7,7 @@ services:
     region: oregon
     autoDeploy: true
 
-  - type: web_service
+  - type: webService
     name: eo-titiler
     env: docker
     dockerfilePath: backend/titiler.Dockerfile
