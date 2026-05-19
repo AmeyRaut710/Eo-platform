@@ -95,8 +95,8 @@ def convert_to_cog():
             OUTPUT_FILE,
             profile,
             dtype=input_dtype,
-            overview_level=4,                   # 4 pyramid levels
-            overview_resampling="nearest",
+            overview_level=6,                   # denser pyramid for smoother zooming
+            overview_resampling="average",
             config=config,
             in_memory=False,
             quiet=False,

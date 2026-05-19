@@ -34,6 +34,12 @@ function initMap() {
     zoom: DEFAULT_ZOOM,
     zoomControl: true,
     attributionControl: false,
+    zoomAnimation: true,
+    fadeAnimation: true,
+    markerZoomAnimation: true,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 80,
   });
 
   // No external basemap is added here — only the COG layer is displayed.
@@ -66,11 +72,15 @@ async function loadCOGLayer() {
 
     cogLayer = L.tileLayer(tj.tiles[0], {
       minZoom:     tj.minzoom || 5,
-      maxZoom:     tj.maxzoom || 18,
+      maxNativeZoom: tj.maxzoom || 18,
+      maxZoom:     Math.max((tj.maxzoom || 18) + 4, 22),
       attribution: "",
       opacity:     1,
       tileSize:    256,
-      keepBuffer:  4,
+      keepBuffer:  8,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      detectRetina: true,
     });
 
     cogLayer.addTo(map);
