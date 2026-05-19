@@ -104,7 +104,7 @@ def api_health():
 @app.get("/api/titiler/health", summary="TiTiler health check")
 def titiler_health():
     try:
-        response = httpx.get(f"{TITILER_URL}/healthz", timeout=5.0)
+        response = httpx.get(f"{TITILER_URL}/healthz", timeout=30.0)
         return {
             "ok": response.status_code == 200,
             "status_code": response.status_code,

@@ -160,10 +160,10 @@ async function pollStatus() {
 
 async function checkTiTiler() {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/titiler/health`, { signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`${BACKEND_URL}/api/titiler/health`, { signal: AbortSignal.timeout(30000) });
     setBadge("badgeTitiler", res.ok ? "OK" : "Error", res.ok ? "ok" : "error");
   } catch {
-    setBadge("badgeTitiler", "Offline", "error");
+    setBadge("badgeTitiler", "Starting", "warn");
   }
 }
 
