@@ -10,7 +10,7 @@ RUN apt-get update \
 
 # Install titiler application and runtime
 RUN python3 -m pip install --upgrade pip setuptools wheel \
-    && python3 -m pip install --no-cache-dir uvicorn[standard] titiler.application==0.18.3
+    && python3 -m pip install --no-cache-dir uvicorn[standard] Jinja2==3.0.3 titiler.application==0.18.3
 
 EXPOSE 8001
 
