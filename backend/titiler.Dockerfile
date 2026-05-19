@@ -8,11 +8,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends gdal-bin libgdal-dev build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install titiler application
-RUN python3 -m pip install --upgrade pip \
-    && python3 -m pip install titiler.application==0.18.3
+# Install titiler application and runtime
+RUN python3 -m pip install --upgrade pip setuptools wheel \
+    && python3 -m pip install --no-cache-dir uvicorn[standard] titiler.application==0.18.3
 
 EXPOSE 8001
 
 # Start TiTiler
-CMD ["sh", "-c", "uvicorn titiler.application.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+CMD ["sh", "-c", "python3 -m uvicorn titiler.application.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
