@@ -133,11 +133,17 @@ async function pollStatus() {
     else if (data.done)      dot.className = "card__dot ok";
     else                     dot.className = "card__dot";
 
-    // If an input TIFF exists but no COG yet, trigger processing automatically
-    if (data.input_exists && !data.cog_exists && !data.running) {
-      // Start conversion once (backend will guard against duplicate runs)
-      showToast("Starting conversion automatically", "info");
-      triggerProcessing();
+    // Show the input TIFF preview immediately while conversion is pending
+    if (data.input_exists && !data.cog_exists) {
+      if (!inputOverlay) {
+        await loadInputPreview();
+      }
+
+      // Trigger processing automatically once the input file is visible
+      if (!data.running) {
+        showToast("Starting conversion automatically", "info");
+        triggerProcessing();
+      }
     }
 
     // Load COG layer when COG is ready
@@ -354,6 +360,9 @@ document.getElementById("btnProcess").addEventListener("click",   triggerProcess
 
   // Initial checks
   await Promise.all([pollStatus(), checkTiTiler()]);
+
+  // If the input file is already present, load its preview immediately
+  await loadInputPreview();
 
   // Start polling
   setInterval(pollStatus,    POLL_MS);
