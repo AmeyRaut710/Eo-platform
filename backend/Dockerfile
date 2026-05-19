@@ -1,11 +1,12 @@
-FROM osgeo/gdal:ubuntu-small-3.7.2
+FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
-# Install Python 3 and pip
+# Install GDAL and PROJ dependencies
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip \
+    && apt-get install -y --no-install-recommends \
+    gdal-bin libgdal-dev libproj-dev python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python deps
