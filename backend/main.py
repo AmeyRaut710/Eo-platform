@@ -33,6 +33,19 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+# Automatically start COG conversion on service startup if input.tif exists but output_cog.tif is missing.
+@app.on_event("startup")
+def ensure_cog_on_startup():
+    try:
+        # If input TIFF exists and output COG doesn't, start processing in background
+        if os.path.exists(INPUT_FILE) and not os.path.exists(OUTPUT_FILE):
+            # Use the thread helper to avoid blocking startup
+            start_processing_thread()
+    except Exception:
+        # Do not raise — we want the service to start even if processing fails
+        pass
+
 # ── CORS (allow all origins for local dev) ────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
