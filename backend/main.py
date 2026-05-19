@@ -14,7 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse, Response
 import httpx
 
-TITILER_URL = os.getenv("TITILER_URL", "http://localhost:8001")
+# Default to the deployed eo-titiler service so Render deployments work without manual env vars.
+TITILER_URL = os.getenv("TITILER_URL", "https://eo-titiler.onrender.com")
 
 from processing import (
     convert_to_cog,
