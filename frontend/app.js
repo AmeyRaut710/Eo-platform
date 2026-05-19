@@ -127,6 +127,13 @@ async function pollStatus() {
     else if (data.done)      dot.className = "card__dot ok";
     else                     dot.className = "card__dot";
 
+    // If an input TIFF exists but no COG yet, trigger processing automatically
+    if (data.input_exists && !data.cog_exists && !data.running) {
+      // Start conversion once (backend will guard against duplicate runs)
+      showToast("Starting conversion automatically", "info");
+      triggerProcessing();
+    }
+
     // Load COG layer when COG is ready
     if (data.cog_exists && !cogLayer) {
       await loadCOGLayer();
