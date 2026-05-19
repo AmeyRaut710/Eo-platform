@@ -26,6 +26,7 @@ RUN pip install --upgrade pip setuptools wheel \
 
 # Copy application code
 COPY backend /app/
+COPY frontend /frontend/
 
 EXPOSE 8000
 
