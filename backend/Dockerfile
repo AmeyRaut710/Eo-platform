@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gdal-bin \
     libgdal-dev \
-    libgdal32 \
     libproj-dev \
-    libproj25 \
+    proj-bin \
+    proj-data \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
