@@ -15,4 +15,4 @@ RUN python3 -m pip install --upgrade pip \
 EXPOSE 8001
 
 # Start TiTiler
-CMD ["uvicorn", "titiler.application.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["sh", "-c", "uvicorn titiler.application.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
