@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse, Response
 import httpx
 
+TITILER_URL = os.getenv("TITILER_URL", "http://localhost:8001")
+
 from processing import (
     convert_to_cog,
     start_processing_thread,
@@ -161,7 +163,7 @@ def get_cog_info():
 
 
 @app.get("/api/cog/tilejson", summary="TileJSON descriptor for Leaflet")
-def get_tilejson(titiler_url: str = "http://localhost:8001"):
+def get_tilejson(titiler_url: str = TITILER_URL):
     """
     Return a TileJSON object pointing at TiTiler.
     The frontend uses this to configure the Leaflet tile layer.
@@ -193,10 +195,7 @@ def get_tilejson(titiler_url: str = "http://localhost:8001"):
 
     # Build tile URL — TiTiler COG endpoint
     # Use a backend proxy endpoint so the browser does not send raw file:// URLs.
-    tile_url = (
-        f"http://localhost:8000/api/cog/tiles"
-        f"/{{z}}/{{x}}/{{y}}"
-    )
+    tile_url = "/api/cog/tiles/{z}/{x}/{y}"
 
     with rasterio.open(OUTPUT_FILE) as src:
         bounds_wgs84 = transform_bounds(
@@ -225,7 +224,7 @@ def proxy_cog_tile(z: int, x: int, y: int):
             detail="COG file not found. Run POST /api/process first.",
         )
 
-    titiler_url = "http://localhost:8001"
+    titiler_url = TITILER_URL
 
     # Use a posix path string for TiTiler on Windows.
     cog_path_uri = Path(OUTPUT_FILE).absolute().as_posix()

@@ -14,7 +14,7 @@
 "use strict";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const BACKEND_URL  = "http://localhost:8000";
+const BACKEND_URL  = window.location.origin;
 const TITILER_URL  = "http://localhost:8001";
 const COG_PATH     = "file:///path/to/backend/data/output_cog.tif"; // updated by /api/tilejson
 const HYDERABAD    = [17.3850, 78.4867];
@@ -58,7 +58,7 @@ function initMap() {
 
 async function loadCOGLayer() {
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/cog/tilejson?titiler_url=${TITILER_URL}`);
+    const res  = await fetch(`${BACKEND_URL}/api/cog/tilejson`);
     if (!res.ok) throw new Error(`Backend returned ${res.status}`);
     const tj   = await res.json();
     tilejsonCache = tj;
