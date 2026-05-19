@@ -21,7 +21,7 @@ const DEFAULT_ZOOM = 10;
 const POLL_MS      = 4000;  // status poll interval
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let map, cogLayer, activeLayerName = "satellite";
+let map, cogLayer, inputOverlay, activeLayerName = "satellite";
 let tilejsonCache = null;
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -75,6 +75,12 @@ async function loadCOGLayer() {
 
     cogLayer.addTo(map);
     fitToBounds(tj.bounds);
+
+    // If an input preview overlay exists (before conversion), remove it
+    if (inputOverlay) {
+      try { map.removeLayer(inputOverlay); } catch (e) {}
+      inputOverlay = null;
+    }
 
     showToast("COG layer loaded ✓", "success");
     return tj;
@@ -181,6 +187,30 @@ async function loadMetadata() {
       map.setView([info.center.lat, info.center.lon], DEFAULT_ZOOM);
     }
   } catch { /* metadata not yet available */ }
+}
+
+
+// Load input preview image and add an image overlay to the map
+async function loadInputPreview() {
+  try {
+    const infoRes = await fetch(`${BACKEND_URL}/api/input/info`);
+    if (!infoRes.ok) return;
+    const info = await infoRes.json();
+
+    const imgRes = await fetch(`${BACKEND_URL}/api/input/preview`);
+    if (!imgRes.ok) return;
+    const blob = await imgRes.blob();
+    const url = URL.createObjectURL(blob);
+
+    // bounds = [west, south, east, north]
+    const bounds = info.bounds_wgs84;
+    if (inputOverlay) { try { map.removeLayer(inputOverlay); } catch (e) {} }
+    inputOverlay = L.imageOverlay(url, [[bounds[1], bounds[0]], [bounds[3], bounds[2]]], { opacity: 1 }).addTo(map);
+    fitToBounds(bounds);
+    showToast("Input preview loaded", "success");
+  } catch (e) {
+    console.warn("Failed to load input preview:", e);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

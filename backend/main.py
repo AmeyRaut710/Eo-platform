@@ -7,7 +7,9 @@ import sys
 import urllib.parse
 
 import rasterio
+import numpy as np
 from rasterio.warp import transform_bounds
+from rasterio.enums import Resampling
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +28,9 @@ from processing import (
     DATA_DIR,
     BASE_DIR,
 )
+
+from io import BytesIO
+from PIL import Image
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -248,6 +253,83 @@ def get_tilejson(request: Request, titiler_url: str = TITILER_URL):
         "bounds":   list(bounds_wgs84),
         "center":   [center_lon, center_lat, 10],
     }
+
+
+@app.get("/api/input/info", summary="Input TIFF metadata")
+def get_input_info():
+    """Return spatial metadata about the input GeoTIFF (before conversion)."""
+    if not os.path.exists(INPUT_FILE):
+        raise HTTPException(status_code=404, detail="Input file not found.")
+
+    with rasterio.open(INPUT_FILE) as src:
+        bounds_wgs84 = transform_bounds(src.crs, "EPSG:4326", *src.bounds, densify_pts=21)
+        center_lon = (bounds_wgs84[0] + bounds_wgs84[2]) / 2
+        center_lat = (bounds_wgs84[1] + bounds_wgs84[3]) / 2
+
+        return {
+            "file": os.path.basename(INPUT_FILE),
+            "size_mb": round(os.path.getsize(INPUT_FILE) / 1_048_576, 2),
+            "width": src.width,
+            "height": src.height,
+            "bands": src.count,
+            "crs": str(src.crs),
+            "bounds_wgs84": list(bounds_wgs84),
+            "center": {"lat": center_lat, "lon": center_lon},
+        }
+
+
+@app.get("/api/input/preview", summary="PNG preview of input TIFF")
+def get_input_preview(max_size: int = 1024):
+    """Return a PNG preview (downsampled) of the input GeoTIFF for quick display in the frontend.
+
+    max_size controls the maximum dimension (width or height) of the returned image.
+    """
+    if not os.path.exists(INPUT_FILE):
+        raise HTTPException(status_code=404, detail="Input file not found.")
+
+    try:
+        with rasterio.open(INPUT_FILE) as src:
+            # Read a downsampled overview if available or resample to fit max_size
+            w, h = src.width, src.height
+            scale = max(1, int(max(w / max_size, h / max_size)))
+
+            # Use rio's read with out_shape to resample
+            out_shape = (src.count, int(h / scale), int(w / scale))
+            data = src.read(
+                out_shape=out_shape,
+                resampling=Resampling.nearest,
+            )
+
+            # Convert to uint8 image (RGB)
+            # data shape: (bands, H, W)
+            arr = data.astype('float32')
+            # Simple linear stretch per-band
+            for i in range(arr.shape[0]):
+                band = arr[i]
+                mn, mx = band.min(), band.max()
+                if mx > mn:
+                    arr[i] = (band - mn) / (mx - mn) * 255.0
+                else:
+                    arr[i] = band * 0
+
+            # Stack into HxWx3 (use first 3 bands or replicate)
+            H = arr.shape[1]
+            W = arr.shape[2]
+            if arr.shape[0] >= 3:
+                img = np.dstack([arr[0], arr[1], arr[2]]).astype('uint8')
+            else:
+                gray = arr[0].astype('uint8')
+                img = np.dstack([gray, gray, gray])
+
+            pil = Image.fromarray(img)
+            buf = BytesIO()
+            pil.save(buf, format='PNG')
+            buf.seek(0)
+
+            return Response(content=buf.read(), media_type='image/png')
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {exc}")
 
 
 @app.get("/api/cog/tiles/{z}/{x}/{y}")
