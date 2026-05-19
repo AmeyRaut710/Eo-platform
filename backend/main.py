@@ -305,3 +305,51 @@ def get_band_stats():
                 "mean":  float(band.mean()),
             })
     return {"bands": stats}
+
+
+@app.get("/api/debug/tile_check", summary="Debug: fetch a sample tile from TiTiler")
+def debug_tile_check(request: Request, z: int = 1, x: int = 0, y: int = 0):
+    """Attempt to fetch a tile from TiTiler and return diagnostics useful for debugging deployments.
+
+    Returns JSON with the resolved `tile_url`, HTTP status code, response content length and content-type.
+    """
+    if not os.path.exists(OUTPUT_FILE):
+        raise HTTPException(
+            status_code=404,
+            detail="COG file not found. Run POST /api/process first.",
+        )
+
+    # Read runtime env var in case Render sets it after process start
+    titiler_url = os.getenv("TITILER_URL", TITILER_URL)
+
+    source_url = str(request.base_url) + "api/cog/raw"
+    encoded_cog_url = urllib.parse.quote(source_url, safe="")
+
+    tile_url = (
+        f"{titiler_url}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png"
+        f"?url={encoded_cog_url}&rescale=0,1&rgb=1,2,3"
+    )
+
+    try:
+        resp = httpx.get(tile_url, timeout=20.0)
+    except httpx.RequestError as exc:
+        return JSONResponse(status_code=502, content={
+            "error": "request_failed",
+            "message": str(exc),
+            "tile_url": tile_url,
+        })
+
+    content_snippet = None
+    try:
+        # return a short hexdump for binary safety
+        content_snippet = resp.content[:200].hex()
+    except Exception:
+        content_snippet = None
+
+    return JSONResponse(content={
+        "tile_url": tile_url,
+        "status_code": resp.status_code,
+        "content_length": len(resp.content) if resp.content is not None else 0,
+        "content_type": resp.headers.get("Content-Type"),
+        "snippet_hex": content_snippet,
+    })
