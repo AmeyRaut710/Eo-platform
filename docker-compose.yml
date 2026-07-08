@@ -1,0 +1,55 @@
+services:
+  db:
+    image: ghcr.io/stac-utils/pgstac:v0.8.5
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: eo_user
+      POSTGRES_PASSWORD: eo_password
+      POSTGRES_DB: eo_platform
+      PGUSER: eo_user
+      PGPASSWORD: eo_password
+      PGDATABASE: eo_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - ISRO:/var/lib/postgresql/data
+
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    container_name: titiler_server
+    ports:
+      - "8001:80"
+    environment:
+      - CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.jp2
+      - GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR
+    volumes:
+      - ./backend/cogs:/app/cogs
+      - ./backend/vista_data:/app/vista_data
+    depends_on:
+      - db
+
+  fastapi:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: fastapi_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./frontend:/frontend
+    environment:
+      - DB_HOST=db
+      - DB_USER=eo_user
+      - DB_PASS=eo_password
+      - DB_NAME=eo_platform
+      - TITILER_URL=http://localhost:8001
+      - TITILER_INTERNAL_URL=http://titiler:80
+      - FASTAPI_INTERNAL_URL=http://fastapi:8000
+    depends_on:
+      - db
+      - titiler
+
+volumes:
+  ISRO:
+    external: true

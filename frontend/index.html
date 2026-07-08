@@ -11,11 +11,10 @@
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap"
-    rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=9.0" />
 </head>
 
 <body>
@@ -23,7 +22,7 @@
   <!-- ─── TOP BAR ───────────────────────────────────────────────────────────── -->
   <header class="topbar">
     <div class="topbar__brand">
-      <span class="topbar__icon">◈</span>
+      <span class="topbar__icon">🌍</span>
       <span class="topbar__title">EO<strong>Platform</strong></span>
       <span class="topbar__sub">Hyderabad · Sentinel-2</span>
     </div>
@@ -34,23 +33,133 @@
     </div>
 
     <div class="topbar__actions">
-      <button class="pill-btn" id="btnProcess" title="Trigger COG conversion">
-        ⚙ Process
-      </button>
       <button class="pill-btn active" id="btnSatellite">Satellite</button>
-      <button class="pill-btn" id="btnStreet">Streets</button>
-      <button class="pill-btn" id="btnNDVI">NDVI</button>
+      <button class="pill-btn" id="btnVista">Vista</button>
     </div>
   </header>
 
+
   <!-- ─── MAIN LAYOUT ───────────────────────────────────────────────────────── -->
   <main class="layout">
+
+    <!-- LEFT PANEL: Multi-Image Selection -->
+    <aside class="panel left-panel">
+      <div class="card">
+        <div class="card__header">AVAILABLE IMAGES</div>
+        <div class="card__body" id="datasetList">
+          <div class="status-msg">Loading datasets...</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- LEFT PANEL: Vista Mode -->
+    <aside class="panel vista-panel" style="display: none;">
+      <div class="card">
+        <div class="card__header" style="display:flex; justify-content:space-between; align-items:center;">
+          VISTA LAYERS
+        </div>
+        <div class="card__body" id="vistaLayerList" style="padding: 10px;">
+          <div class="status-msg">Loading vista images...</div>
+        </div>
+      </div>
+    </aside>
 
     <!-- MAP -->
     <div id="map"></div>
 
     <!-- SIDE PANEL -->
     <aside class="panel">
+
+      <!-- LAYER OPERATIONS -->
+      <div class="card" id="layerOpsCard" style="display: none;">
+        <div class="card__header">LAYER OPERATIONS</div>
+        <div class="card__body" style="padding:0;">
+          
+          <div style="padding:10px; text-align:center; color:var(--text-dim); font-size:11px; margin-bottom:0px;">
+            Drag bands from palette to fields below
+          </div>
+          
+          <!-- Palette -->
+          <div class="band-palette" id="bandPalette">
+             <div class="band-item bg-purple" draggable="true" data-band="B01">B01</div>
+             <div class="band-item bg-blue" draggable="true" data-band="B02">B02</div>
+             <div class="band-item bg-green" draggable="true" data-band="B03">B03</div>
+             <div class="band-item bg-orange" draggable="true" data-band="B04">B04</div>
+             <div class="band-item bg-red" draggable="true" data-band="B05">B05</div>
+             <div class="band-item bg-dark-orange" draggable="true" data-band="B06">B06</div>
+             <div class="band-item bg-dark-red" draggable="true" data-band="B07">B07</div>
+             <div class="band-item bg-red" draggable="true" data-band="B08">B08</div>
+             <div class="band-item bg-deep-red" draggable="true" data-band="B8A">B8A</div>
+             <div class="band-item bg-brick-red" draggable="true" data-band="B09">B09</div>
+             <div class="band-item bg-violet" draggable="true" data-band="B11">B11</div>
+             <div class="band-item bg-brown" draggable="true" data-band="B12">B12</div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="tabs">
+            <div class="tab active" data-tab="composite">Composite</div>
+            <div class="tab" data-tab="index">Index</div>
+          </div>
+          
+          <div style="padding:0 16px 16px 16px;">
+              <!-- COMPOSITE TAB -->
+              <div id="tab-composite" class="tab-content">
+                  <div class="drop-zones-container" style="display:flex; justify-content:center; gap: 12px; align-items:center; background:#F9FAFB; border:1px solid var(--border); border-radius:6px; padding:12px 10px; margin-bottom:12px;">
+                      
+                      <div class="drop-zone-wrapper">
+                         <span class="channel-label">R:</span>
+                         <div class="drop-zone bg-orange filled" id="drop-r" data-channel="r">B04</div>
+                      </div>
+                      
+                      <div class="drop-zone-wrapper">
+                         <span class="channel-label">G:</span>
+                         <div class="drop-zone bg-green filled" id="drop-g" data-channel="g">B03</div>
+                      </div>
+                      
+                      <div class="drop-zone-wrapper">
+                         <span class="channel-label">B:</span>
+                         <div class="drop-zone bg-blue filled" id="drop-b" data-channel="b">B02</div>
+                      </div>
+                  </div>
+                  
+                  <button id="btnApplyComposite" class="primary-btn">Apply Composite</button>
+              </div>
+              
+              <!-- INDEX TAB -->
+              <div id="tab-index" class="tab-content" style="display:none; padding-top: 5px;">
+                  <div class="section-label">Index Format</div>
+                  <select id="selIndexFormat" class="light-input" style="margin-bottom: 16px;">
+                      <option value="normalized">Index (A-B)/(A+B)</option>
+                      <option value="ratio">Index (A/B)</option>
+                  </select>
+
+                  <!-- Normalized Formula -->
+                  <div id="formula-normalized" class="formula-container">
+                      <div class="formula-row">
+                          <div class="drop-zone bg-red filled" id="drop-idx-n1" data-channel="n1">B08</div>
+                          <span>-</span>
+                          <div class="drop-zone bg-orange filled" id="drop-idx-n2" data-channel="n2">B04</div>
+                      </div>
+                      <div class="formula-divider"></div>
+                      <div class="formula-row">
+                          <div class="drop-zone bg-red filled" id="drop-idx-n3" data-channel="n3">B08</div>
+                          <span>+</span>
+                          <div class="drop-zone bg-orange filled" id="drop-idx-n4" data-channel="n4">B04</div>
+                      </div>
+                  </div>
+
+                  <!-- Ratio Formula -->
+                  <div id="formula-ratio" class="formula-container" style="display: none;">
+                      <div class="drop-zone bg-red filled" id="drop-idx-r1" data-channel="r1">B08</div>
+                      <div class="formula-divider" style="width: 60px;"></div>
+                      <div class="drop-zone bg-orange filled" id="drop-idx-r2" data-channel="r2">B04</div>
+                  </div>
+                  
+                  <button id="btnApplyIndex" class="primary-btn">Apply Index</button>
+              </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Status card -->
       <div class="card" id="cardStatus">
@@ -61,8 +170,6 @@
         <div class="card__body" id="statusBody">
           <div class="stat-row"><span>Backend</span><span class="badge" id="badgeBackend">—</span></div>
           <div class="stat-row"><span>TiTiler</span><span class="badge" id="badgeTitiler">—</span></div>
-          <div class="stat-row"><span>Input TIF</span><span class="badge" id="badgeInput">—</span></div>
-          <div class="stat-row"><span>COG File</span><span class="badge" id="badgeCOG">—</span></div>
           <div class="progress-wrap">
             <div class="progress-bar" id="progressBar"></div>
           </div>
@@ -72,21 +179,21 @@
 
       <!-- Metadata card -->
       <div class="card" id="cardMeta">
-        <div class="card__header">◈ COG METADATA</div>
+        <div class="card__header">COG METADATA</div>
         <div class="card__body" id="metaBody">
-          <div class="stat-row"><span>Width</span><span id="metaWidth">—</span></div>
-          <div class="stat-row"><span>Height</span><span id="metaHeight">—</span></div>
+          <div class="stat-row"><span>Resolution</span><span id="metaWidth">—</span></div>
+          <div class="stat-row"><span>Original</span><span id="metaHeight" title="Original Filename">—</span></div>
           <div class="stat-row"><span>Bands</span><span id="metaBands">—</span></div>
-          <div class="stat-row"><span>CRS</span><span id="metaCRS">—</span></div>
-          <div class="stat-row"><span>Size</span><span id="metaSize">—</span></div>
-          <div class="stat-row"><span>Overviews</span><span id="metaOvr">—</span></div>
+          <div class="stat-row"><span>Path</span><span id="metaCRS" title="Local Path">—</span></div>
+          <div class="stat-row"><span>Name</span><span id="metaSize">—</span></div>
+          <div class="stat-row"><span>Ingested</span><span id="metaOvr" title="Ingestion Time">—</span></div>
           <div class="stat-row"><span>Center</span><span id="metaCenter">—</span></div>
         </div>
       </div>
 
       <!-- Zoom info card -->
       <div class="card">
-        <div class="card__header">⬡ MAP INFO</div>
+        <div class="card__header">MAP INFO</div>
         <div class="card__body">
           <div class="stat-row"><span>Zoom Level</span><span id="zoomLevel">—</span></div>
           <div class="stat-row"><span>Lat</span><span id="cursorLat">—</span></div>
@@ -96,7 +203,7 @@
 
       <!-- Pyramid visualization -->
       <div class="card">
-        <div class="card__header">△ PYRAMID LEVELS</div>
+        <div class="card__header">PYRAMID LEVELS</div>
         <div class="card__body">
           <div class="pyramid" id="pyramidViz">
             <div class="pyr-level" data-zoom="0-5">Level 0 — Thumbnail</div>
@@ -109,7 +216,7 @@
 
       <!-- Layer legend -->
       <div class="card">
-        <div class="card__header">▦ ABOUT</div>
+        <div class="card__header">ABOUT</div>
         <div class="card__body about-text">
           <p>COG + TiTiler satellite viewer for the Hyderabad region.
             Uses dynamic HTTP Range Requests for tile loading — only
@@ -124,9 +231,16 @@
   <!-- ─── TOAST ─────────────────────────────────────────────────────────────── -->
   <div id="toast" class="toast"></div>
 
+  <!-- ─── LOADING OVERLAY ─────────────────────────────────────────────────── -->
+  <div id="loadingOverlay" class="hidden">
+    <div class="loading-icon">🌍</div>
+    <div class="loading-text">LOADING IMAGE...</div>
+  </div>
+
   <!-- ─── SCRIPTS ───────────────────────────────────────────────────────────── -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2.9"></script>
+  <script src="/static/vista.js?v=1.5"></script>
 </body>
 
 </html>

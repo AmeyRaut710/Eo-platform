@@ -8,4 +8,12 @@ backend/__pycache__
 node_modules
 *.pyc
 .code-review-graph
-backend/data/output_cog.tif
+backend/data/
+backend/cogs/
+backend/vista_data/
+*.tif
+*.tiff
+*.zip
+*.jp2
+*.SAFE
+backend/get-pip.py

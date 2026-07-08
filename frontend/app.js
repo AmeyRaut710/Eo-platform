@@ -14,14 +14,15 @@
 "use strict";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const BACKEND_URL  = window.location.origin;
+const BACKEND_URL  = "http://localhost:8000";
+const TITILER_URL  = "http://localhost:8001";
 const COG_PATH     = "file:///path/to/backend/data/output_cog.tif"; // updated by /api/tilejson
 const HYDERABAD    = [17.3850, 78.4867];
 const DEFAULT_ZOOM = 10;
 const POLL_MS      = 4000;  // status poll interval
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let map, cogLayer, inputOverlay, activeLayerName = "satellite";
+let map, cogLayer, activeLayerName = "satellite";
 let tilejsonCache = null;
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -34,12 +35,8 @@ function initMap() {
     zoom: DEFAULT_ZOOM,
     zoomControl: true,
     attributionControl: false,
-    zoomAnimation: true,
-    fadeAnimation: true,
-    markerZoomAnimation: true,
-    zoomSnap: 0.25,
-    zoomDelta: 0.5,
-    wheelPxPerZoomLevel: 80,
+    minZoom: 2,
+    maxZoom: 24
   });
 
   // No external basemap is added here — only the COG layer is displayed.
@@ -61,45 +58,7 @@ function initMap() {
 // COG / TITILER LAYER
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function loadCOGLayer() {
-  try {
-    const res  = await fetch(`${BACKEND_URL}/api/cog/tilejson`);
-    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-    const tj   = await res.json();
-    tilejsonCache = tj;
-
-    if (cogLayer) map.removeLayer(cogLayer);
-
-    cogLayer = L.tileLayer(tj.tiles[0], {
-      minZoom:     tj.minzoom || 5,
-      maxNativeZoom: tj.maxzoom || 18,
-      maxZoom:     Math.max((tj.maxzoom || 18) + 4, 22),
-      attribution: "",
-      opacity:     1,
-      tileSize:    256,
-      keepBuffer:  8,
-      updateWhenZooming: false,
-      updateWhenIdle: true,
-      detectRetina: true,
-    });
-
-    cogLayer.addTo(map);
-    fitToBounds(tj.bounds);
-
-    // If an input preview overlay exists (before conversion), remove it
-    if (inputOverlay) {
-      try { map.removeLayer(inputOverlay); } catch (e) {}
-      inputOverlay = null;
-    }
-
-    showToast("COG layer loaded ✓", "success");
-    return tj;
-  } catch (e) {
-    console.warn("COG layer not available:", e.message);
-    showToast("TiTiler not reachable — showing base map", "info");
-    return null;
-  }
-}
+// No default layer loading on boot anymore, user must select an image.
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LAYER SWITCHER
@@ -129,11 +88,6 @@ async function pollStatus() {
 
     setBadge("badgeBackend", "OK", "ok");
 
-    setBadge("badgeInput",   data.input_exists ? "Found" : "Missing",
-                             data.input_exists ? "ok"    : "error");
-    setBadge("badgeCOG",     data.cog_exists   ? `${data.cog_size_mb} MB` : "Not found",
-                             data.cog_exists   ? "ok"    : "warn");
-
     document.getElementById("progressBar").style.width  = data.progress + "%";
     document.getElementById("statusMsg").textContent    = data.message || "—";
 
@@ -143,25 +97,6 @@ async function pollStatus() {
     else if (data.done)      dot.className = "card__dot ok";
     else                     dot.className = "card__dot";
 
-    // Show the input TIFF preview immediately while conversion is pending
-    if (data.input_exists && !data.cog_exists) {
-      if (!inputOverlay) {
-        await loadInputPreview();
-      }
-
-      // Trigger processing automatically once the input file is visible
-      if (!data.running) {
-        showToast("Starting conversion automatically", "info");
-        triggerProcessing();
-      }
-    }
-
-    // Load COG layer when COG is ready
-    if (data.cog_exists && !cogLayer) {
-      await loadCOGLayer();
-      await loadMetadata();
-    }
-
   } catch {
     setBadge("badgeBackend", "Offline", "error");
     document.getElementById("statusMsg").textContent = "Cannot reach backend";
@@ -170,10 +105,10 @@ async function pollStatus() {
 
 async function checkTiTiler() {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/titiler/health`, { signal: AbortSignal.timeout(30000) });
+    const res = await fetch(`${TITILER_URL}/healthz`, { signal: AbortSignal.timeout(2000) });
     setBadge("badgeTitiler", res.ok ? "OK" : "Error", res.ok ? "ok" : "error");
   } catch {
-    setBadge("badgeTitiler", "Starting", "warn");
+    setBadge("badgeTitiler", "Offline", "error");
   }
 }
 
@@ -181,18 +116,19 @@ async function checkTiTiler() {
 // METADATA DISPLAY
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function loadMetadata() {
+async function loadMetadata(id) {
+  if (!id) return;
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/info`);
+    const res  = await fetch(`${BACKEND_URL}/api/info/${id}`);
     if (!res.ok) return;
     const info = await res.json();
 
-    setText("metaWidth",   info.width?.toLocaleString() ?? "—");
-    setText("metaHeight",  info.height?.toLocaleString() ?? "—");
+    setText("metaWidth",   info.resolution ? `${info.resolution.toFixed(2)}m` : "—"); // using resolution slot instead of width
+    setText("metaHeight",  info.original_name ?? "—");
     setText("metaBands",   info.bands ?? "—");
-    setText("metaCRS",     info.crs ?? "—");
-    setText("metaSize",    info.size_mb ? `${info.size_mb} MB` : "—");
-    setText("metaOvr",     info.overviews?.length ? info.overviews.join(", ") : "None");
+    setText("metaCRS",     info.cog_path ?? "—");
+    setText("metaSize",    info.file ?? "—");
+    setText("metaOvr",     info.created_at ?? "—");
     setText("metaCenter",
       info.center
         ? `${info.center.lat.toFixed(4)}°, ${info.center.lon.toFixed(4)}°`
@@ -205,43 +141,241 @@ async function loadMetadata() {
   } catch { /* metadata not yet available */ }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// MULTI-IMAGE SELECTION (DATASETS)
+// ══════════════════════════════════════════════════════════════════════════════
 
-// Load input preview image and add an image overlay to the map
-async function loadInputPreview() {
+async function loadDatasets() {
   try {
-    const infoRes = await fetch(`${BACKEND_URL}/api/input/info`);
-    if (!infoRes.ok) return;
-    const info = await infoRes.json();
+    const res = await fetch(`${BACKEND_URL}/datasets`);
+    if (!res.ok) return;
+    const datasets = await res.json();
+    
+    const container = document.getElementById("datasetList");
 
-    const imgRes = await fetch(`${BACKEND_URL}/api/input/preview`);
-    if (!imgRes.ok) return;
-    const blob = await imgRes.blob();
-    const url = URL.createObjectURL(blob);
-
-    // bounds = [west, south, east, north]
-    const bounds = info.bounds_wgs84;
-    if (inputOverlay) { try { map.removeLayer(inputOverlay); } catch (e) {} }
-    inputOverlay = L.imageOverlay(url, [[bounds[1], bounds[0]], [bounds[3], bounds[2]]], { opacity: 1 }).addTo(map);
-    fitToBounds(bounds);
-    showToast("Input preview loaded", "success");
+    container.innerHTML = "";
+    
+    if (datasets.length === 0) {
+      container.innerHTML = '<div class="status-msg">No images found</div>';
+      return;
+    }
+    
+    datasets.forEach(ds => {
+      const isProcessing = !ds.cog_path;
+      const el = document.createElement("div");
+      el.className = "dataset-card" + (isProcessing ? " processing" : "");
+      if (isProcessing) {
+          el.style.opacity = "0.6";
+          el.style.borderLeftColor = "#ffb300";
+      }
+      el.innerHTML = `
+        <div class="dataset-card__name">${ds.name}</div>
+        <div class="dataset-card__path" title="${ds.original_name}">${ds.original_name}</div>
+        ${isProcessing ? '<div style="color:#ffb300; font-size:10px; margin-top:4px;">Processing...</div>' : ''}
+      `;
+      if (!isProcessing) {
+          el.addEventListener("click", () => selectDataset(ds, el));
+      } else {
+          el.addEventListener("click", () => alert("Image is still being converted to COG. Please wait..."));
+      }
+      container.appendChild(el);
+    });
   } catch (e) {
-    console.warn("Failed to load input preview:", e);
+    console.warn("Failed to load datasets:", e);
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TRIGGER PROCESSING
-// ══════════════════════════════════════════════════════════════════════════════
+let currentActiveDataset = null;
 
-async function triggerProcessing() {
+async function selectDataset(ds, element) {
+  // Update active state
+  document.querySelectorAll(".dataset-card").forEach(el => el.classList.remove("active"));
+  if (element) element.classList.add("active");
+  
+  currentActiveDataset = ds;
+  document.getElementById("layerOpsCard").style.display = "block";
+  
+  // Show loading overlay
+  const loading = document.getElementById("loadingOverlay");
+  if (loading) loading.classList.remove("hidden");
+  
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/process`, { method: "POST" });
-    const data = await res.json();
-    showToast(data.message, res.ok ? "success" : "error");
-  } catch {
-    showToast("Cannot reach backend", "error");
+    // Collect active layer operations if any
+    let queryParams = "";
+    const activeTab = document.querySelector(".tab.active").getAttribute("data-tab");
+    
+    if (activeTab === "composite") {
+        const r = document.getElementById("drop-r").textContent.trim() || "B04";
+        const g = document.getElementById("drop-g").textContent.trim() || "B03";
+        const b = document.getElementById("drop-b").textContent.trim() || "B02";
+        queryParams = `?assets=${r},${g},${b}`;
+    } else if (activeTab === "index") {
+        const format = document.getElementById("selIndexFormat").value;
+        let expr;
+        let rescale;
+        let exprAssets = [];
+        if (format === "normalized") {
+            const n1 = document.getElementById("drop-idx-n1").textContent.trim() || "B08";
+            const n2 = document.getElementById("drop-idx-n2").textContent.trim() || "B04";
+            const n3 = document.getElementById("drop-idx-n3").textContent.trim() || "B08";
+            const n4 = document.getElementById("drop-idx-n4").textContent.trim() || "B04";
+            
+            if (n1 === "B08" && n2 === "B04" && n3 === "B08" && n4 === "B04") {
+                queryParams = `?zarr_index=NDVI&colormap_name=rdylgn`;
+            } else if (n1 === "B03" && n2 === "B08" && n3 === "B03" && n4 === "B08") {
+                queryParams = `?zarr_index=NDWI&colormap_name=rdylgn`;
+            } else {
+                const uniqueAssets = [...new Set([n1, n2, n3, n4])];
+                exprAssets = uniqueAssets.join(",");
+                
+                const idx1 = uniqueAssets.indexOf(n1) + 1;
+                const idx2 = uniqueAssets.indexOf(n2) + 1;
+                const idx3 = uniqueAssets.indexOf(n3) + 1;
+                const idx4 = uniqueAssets.indexOf(n4) + 1;
+                
+                expr = encodeURIComponent(`(b${idx1}-b${idx2})/(b${idx3}+b${idx4})`);
+                rescale = "-1,1";
+                const cmap = "rdylgn";
+                queryParams = `?expression=${expr}&assets=${exprAssets}&asset_as_band=true&colormap_name=${cmap}&rescale=${rescale}`;
+            }
+        } else {
+            const r1 = document.getElementById("drop-idx-r1").textContent.trim() || "B08";
+            const r2 = document.getElementById("drop-idx-r2").textContent.trim() || "B04";
+            
+            const uniqueAssets = [...new Set([r1, r2])];
+            exprAssets = uniqueAssets.join(",");
+            
+            const idx1 = uniqueAssets.indexOf(r1) + 1;
+            const idx2 = uniqueAssets.indexOf(r2) + 1;
+            
+            expr = encodeURIComponent(`(b${idx1}/b${idx2})`);
+            rescale = "0,3";
+            const cmap = "rdylgn";
+            queryParams = `?expression=${expr}&assets=${exprAssets}&asset_as_band=true&colormap_name=${cmap}&rescale=${rescale}`;
+        }
+    }
+
+    // 1. Fetch TileJSON (TiTiler endpoints)
+    const res = await fetch(`${BACKEND_URL}/view/${ds.id}${queryParams}`);
+    if (!res.ok) throw new Error("Failed to load tilejson");
+    
+    const tj = await res.json();
+    tilejsonCache = tj;
+    
+    if (cogLayer) map.removeLayer(cogLayer);
+    
+    cogLayer = L.tileLayer(tj.tiles[0], {
+      minZoom: tj.minzoom || 5,
+      maxZoom: tj.maxzoom || 18,
+      attribution: "",
+      opacity: 1,
+      tileSize: 256,
+      keepBuffer: 4,
+    });
+    
+    cogLayer.addTo(map);
+    fitToBounds(tj.bounds);
+    
+    // 2. Load Metadata for this specific image
+    await loadMetadata(ds.id);
+    
+    showToast(`Loaded ${ds.name}`, "success");
+  } catch (e) {
+    showToast("Error loading image", "error");
+    console.error(e);
+  } finally {
+    if (loading) loading.classList.add("hidden");
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LAYER OPERATIONS UI
+// ══════════════════════════════════════════════════════════════════════════════
+
+document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+        // Switch tab UI
+        document.querySelectorAll(".tab").forEach(t => {
+            t.classList.remove("active");
+            t.style.color = "#555";
+            t.style.border = "1px solid #222";
+            t.style.background = "transparent";
+        });
+        tab.classList.add("active");
+        tab.style.color = "#00e5ff";
+        tab.style.border = "1px solid #00e5ff";
+        tab.style.background = "rgba(0, 229, 255, 0.05)";
+        
+        // Switch content
+        document.querySelectorAll(".tab-content").forEach(tc => tc.style.display = "none");
+        document.getElementById("tab-" + tab.getAttribute("data-tab")).style.display = "block";
+    });
+});
+
+// Drag and Drop Logic
+let draggedItem = null;
+
+document.querySelectorAll(".band-item").forEach(item => {
+    item.addEventListener("dragstart", (e) => {
+        draggedItem = e.target;
+        e.dataTransfer.setData("text/plain", e.target.textContent);
+        setTimeout(() => e.target.style.opacity = '0.5', 0);
+    });
+    
+    item.addEventListener("dragend", (e) => {
+        setTimeout(() => e.target.style.opacity = '1', 0);
+        draggedItem = null;
+    });
+});
+
+document.querySelectorAll(".drop-zone").forEach(zone => {
+    zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        zone.classList.add("drag-over");
+    });
+    
+    zone.addEventListener("dragleave", () => {
+        zone.classList.remove("drag-over");
+    });
+    
+    zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("drag-over");
+        if (draggedItem) {
+            zone.textContent = draggedItem.textContent;
+            const bgClass = Array.from(draggedItem.classList).find(c => c.startsWith('bg-'));
+            
+            zone.classList.forEach(c => {
+                if (c.startsWith('bg-')) zone.classList.remove(c);
+            });
+            
+            if (bgClass) {
+                zone.classList.add(bgClass);
+                zone.classList.add('filled');
+            }
+        }
+    });
+});
+
+document.getElementById("btnApplyComposite").addEventListener("click", () => {
+    if (currentActiveDataset) selectDataset(currentActiveDataset, null);
+});
+document.getElementById("btnApplyIndex").addEventListener("click", () => {
+    if (currentActiveDataset) selectDataset(currentActiveDataset, null);
+});
+
+document.getElementById("selIndexFormat").addEventListener("change", (e) => {
+    if (e.target.value === "normalized") {
+        document.getElementById("formula-normalized").style.display = "flex";
+        document.getElementById("formula-ratio").style.display = "none";
+    } else {
+        document.getElementById("formula-normalized").style.display = "none";
+        document.getElementById("formula-ratio").style.display = "flex";
+    }
+});
+
+
+// triggerProcessing removed since scanning is fully automatic
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GEOCODING SEARCH (Nominatim)
@@ -359,7 +493,6 @@ function showToast(msg, type = "info") {
 // ══════════════════════════════════════════════════════════════════════════════
 
 document.getElementById("btnSatellite").addEventListener("click", () => activateLayer("satellite"));
-document.getElementById("btnProcess").addEventListener("click",   triggerProcessing);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BOOT
@@ -369,14 +502,32 @@ document.getElementById("btnProcess").addEventListener("click",   triggerProcess
   initMap();
 
   // Initial checks
-  await Promise.all([pollStatus(), checkTiTiler()]);
-
-  // If the input file is already present, load its preview immediately
-  await loadInputPreview();
+  await Promise.all([pollStatus(), checkTiTiler(), loadDatasets()]);
 
   // Start polling
   setInterval(pollStatus,    POLL_MS);
   setInterval(checkTiTiler,  POLL_MS * 2);
+  setInterval(loadDatasets,  POLL_MS * 5); // poll for new datasets occasionally
 
   showToast("EO Platform ready", "info");
 })();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB SWITCHING & DRAG-AND-DROP INITIALIZATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Layer operations tabs
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          // Switch content
+          document.querySelectorAll(".tab-content").forEach(tc => tc.style.display = "none");
+          const target = document.getElementById("tab-" + tab.getAttribute("data-tab"));
+          if (target) target.style.display = "block";
+      });
+  });
+});
