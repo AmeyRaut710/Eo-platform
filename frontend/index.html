@@ -12,54 +12,154 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+    rel="stylesheet" />
 
   <link rel="stylesheet" href="/static/style.css?v=9.0" />
 </head>
 
 <body>
 
+  <!-- Vista Conversion Status Banner -->
+  <div id="vistaStatusBanner"
+    style="display:none; position:fixed; bottom:20px; right:20px; background:var(--bg-card, #222); color:var(--text-light, #fff); padding:12px 24px; border-radius:8px; border:1px solid var(--border, #333); box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:9999; font-weight:600; font-size:14px; align-items:center; gap:10px;">
+    <span class="spinner" id="vistaSpinner" style="display:inline-block; animation:spin 2s linear infinite;">⏳</span>
+    <span id="vistaStatusText">Checking conversion status...</span>
+  </div>
+
+  <style>
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      cursor: pointer;
+    }
+  </style>
+
   <!-- ─── TOP BAR ───────────────────────────────────────────────────────────── -->
   <header class="topbar">
     <div class="topbar__brand">
-      <span class="topbar__icon">🌍</span>
-      <span class="topbar__title">EO<strong>Platform</strong></span>
-      <span class="topbar__sub">Hyderabad · Sentinel-2</span>
+      <span class="topbar__icon">🛰</span>
+      <span class="topbar__title"><strong>DRISHTI</strong></span>
     </div>
 
-    <div class="topbar__search">
-      <input id="searchInput" type="text" placeholder="Search area…  (e.g. HITEC City, Charminar)" />
-      <button id="searchBtn">GO</button>
-    </div>
-
-    <div class="topbar__actions">
-      <button class="pill-btn active" id="btnSatellite">Satellite</button>
-      <button class="pill-btn" id="btnVista">Vista</button>
-    </div>
   </header>
 
 
   <!-- ─── MAIN LAYOUT ───────────────────────────────────────────────────────── -->
   <main class="layout">
 
-    <!-- LEFT PANEL: Multi-Image Selection -->
-    <aside class="panel left-panel">
-      <div class="card">
-        <div class="card__header">AVAILABLE IMAGES</div>
-        <div class="card__body" id="datasetList">
-          <div class="status-msg">Loading datasets...</div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- LEFT PANEL: Vista Mode -->
-    <aside class="panel vista-panel" style="display: none;">
+    <!-- LEFT PANEL: Vista Mode Search & Catalog Panel -->
+    <aside class="panel vista-panel" style="width: 320px; min-width: 320px;">
       <div class="card">
         <div class="card__header" style="display:flex; justify-content:space-between; align-items:center;">
-          VISTA LAYERS
+          SEARCH IMAGES (CATALOG)
         </div>
-        <div class="card__body" id="vistaLayerList" style="padding: 10px;">
-          <div class="status-msg">Loading vista images...</div>
+        <div class="card__body" style="padding: 15px;">
+          <form id="searchForm" onsubmit="return false;">
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterMission"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Mission</label>
+              <select id="filterMission" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">All Missions</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterSensor"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Sensor</label>
+              <select id="filterSensor" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">All Sensors</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterLevel"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Processing
+                Level</label>
+              <select id="filterLevel" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">All Levels</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterType"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Product
+                Type</label>
+              <select id="filterType" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">All Types</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterTile"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Tile
+                ID</label>
+              <select id="filterTile" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">All Tiles</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterRes"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Resolution</label>
+              <select id="filterRes" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">All Resolutions</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="filterCloud"
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Cloud
+                Cover</label>
+              <select id="filterCloud" class="form-control"
+                style="width:100%; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px;">
+                <option value="">Any Cloud Cover</option>
+                <option value="0-10">0% – 10%</option>
+                <option value="10-20">10% – 20%</option>
+                <option value="20-40">20% – 40%</option>
+                <option value="40-100">40% – 100%</option>
+              </select>
+            </div>
+
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label
+                style="display:block; font-size:10px; color:var(--text-dim); margin-bottom:3px; font-weight:600; text-transform:uppercase;">Date Range</label>
+              <div style="display:flex; gap:5px; align-items:center;">
+                <input type="date" id="filterDateStart" class="form-control"
+                  style="flex:1; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px; cursor:pointer;" title="Start Date">
+                <span style="color:var(--text-dim); font-size:12px; font-weight:bold;">-</span>
+                <input type="date" id="filterDateEnd" class="form-control"
+                  style="flex:1; background:var(--bg-card); color:var(--text-light); border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px; cursor:pointer;" title="End Date">
+              </div>
+            </div>
+
+            <button id="btnSearchSubmit"
+              style="width:100%; padding:10px; background:linear-gradient(135deg, #00e5ff, #0097a7); color:black; border:none; border-radius:4px; font-weight:bold; font-size:12px; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px;">
+              SUBMIT SEARCH
+            </button>
+
+          </form>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 10px;">
+        <div class="card__header">ACTIVE SEARCH LAYERS</div>
+        <div class="card__body" id="vistaLayerList" style="padding: 10px; max-height: 200px; overflow-y: auto;">
+          <div class="status-msg">Loading filter options...</div>
         </div>
       </div>
     </aside>
@@ -71,92 +171,141 @@
     <aside class="panel">
 
       <!-- LAYER OPERATIONS -->
-      <div class="card" id="layerOpsCard" style="display: none;">
+      <div class="card" id="layerOpsCard">
         <div class="card__header">LAYER OPERATIONS</div>
         <div class="card__body" style="padding:0;">
-          
+
           <div style="padding:10px; text-align:center; color:var(--text-dim); font-size:11px; margin-bottom:0px;">
             Drag bands from palette to fields below
           </div>
-          
+
           <!-- Palette -->
           <div class="band-palette" id="bandPalette">
-             <div class="band-item bg-purple" draggable="true" data-band="B01">B01</div>
-             <div class="band-item bg-blue" draggable="true" data-band="B02">B02</div>
-             <div class="band-item bg-green" draggable="true" data-band="B03">B03</div>
-             <div class="band-item bg-orange" draggable="true" data-band="B04">B04</div>
-             <div class="band-item bg-red" draggable="true" data-band="B05">B05</div>
-             <div class="band-item bg-dark-orange" draggable="true" data-band="B06">B06</div>
-             <div class="band-item bg-dark-red" draggable="true" data-band="B07">B07</div>
-             <div class="band-item bg-red" draggable="true" data-band="B08">B08</div>
-             <div class="band-item bg-deep-red" draggable="true" data-band="B8A">B8A</div>
-             <div class="band-item bg-brick-red" draggable="true" data-band="B09">B09</div>
-             <div class="band-item bg-violet" draggable="true" data-band="B11">B11</div>
-             <div class="band-item bg-brown" draggable="true" data-band="B12">B12</div>
+            <!-- Dynamically populated by JS based on active layer assets -->
           </div>
 
           <!-- Tabs -->
           <div class="tabs">
             <div class="tab active" data-tab="composite">Composite</div>
             <div class="tab" data-tab="index">Index</div>
+            <div class="tab" data-tab="formula">Formula Builder</div>
           </div>
-          
+
           <div style="padding:0 16px 16px 16px;">
-              <!-- COMPOSITE TAB -->
-              <div id="tab-composite" class="tab-content">
-                  <div class="drop-zones-container" style="display:flex; justify-content:center; gap: 12px; align-items:center; background:#F9FAFB; border:1px solid var(--border); border-radius:6px; padding:12px 10px; margin-bottom:12px;">
-                      
-                      <div class="drop-zone-wrapper">
-                         <span class="channel-label">R:</span>
-                         <div class="drop-zone bg-orange filled" id="drop-r" data-channel="r">B04</div>
-                      </div>
-                      
-                      <div class="drop-zone-wrapper">
-                         <span class="channel-label">G:</span>
-                         <div class="drop-zone bg-green filled" id="drop-g" data-channel="g">B03</div>
-                      </div>
-                      
-                      <div class="drop-zone-wrapper">
-                         <span class="channel-label">B:</span>
-                         <div class="drop-zone bg-blue filled" id="drop-b" data-channel="b">B02</div>
-                      </div>
-                  </div>
-                  
-                  <button id="btnApplyComposite" class="primary-btn">Apply Composite</button>
+            <!-- COMPOSITE TAB -->
+            <div id="tab-composite" class="tab-content">
+              <div class="section-label" style="margin-top: 5px;">Composite Presets</div>
+              <select id="selCompositePreset" class="light-input" style="margin-bottom: 16px;">
+                <option value="B04,B03,B02">True Color (B04, B03, B02)</option>
+                <option value="B08,B04,B03">Color Infrared (B08, B04, B03)</option>
+                <option value="B12,B08,B04">Agriculture (B12, B08, B04)</option>
+                <option value="B11,B08,B02">False Color Urban (B11, B08, B02)</option>
+                <option value="B12,B11,B04">Geology (B12, B11, B04)</option>
+                <option value="B11,B08,B04">Moisture (B11, B08, B04)</option>
+                <option value="B12,B08A,B04">Burn Severity (B12, B08A, B04)</option>
+                <option value="B08,B11,B04">Vegetation Moisture (B08, B11, B04)</option>
+                <option value="B08,B03,B02">Enhanced Vegetation (B08, B03, B02)</option>
+                <option value="B11,B04,B03">Land Cover (B11, B04, B03)</option>
+                <option value="B12,B04,B02">Dry Land (B12, B04, B02)</option>
+                <option value="B09,B08,B04">Atmospheric Moisture (B09, B08, B04)</option>
+                <option value="B10,B08,B04">Cirrus Detection (B10, B08, B04)</option>
+                <option value="B01,B02,B03">Coastal (B01, B02, B03)</option>
+                <option value="B05,B04,B03">Vegetation Edge (B05, B04, B03)</option>
+                <option value="B06,B05,B04">Red Edge Composite (B06, B05, B04)</option>
+                <option value="B07,B06,B05">Red Edge Deep (B07, B06, B05)</option>
+                <option value="B08A,B04,B03">Narrow NIR Composite (B08A, B04, B03)</option>
+                <option value="custom">Custom (Drag & Drop)</option>
+              </select>
+
+              <div class="drop-zones-container"
+                style="display:flex; justify-content:center; gap: 12px; align-items:center; background:rgba(18, 25, 48, 0.4); border:1px solid rgba(0, 242, 254, 0.2); border-radius:8px; padding:12px 10px; margin-bottom:12px;">
+
+                <div class="rgb-input-group">
+                  <label>R:</label>
+                  <div class="band-drop-zone bg-orange filled" id="drop-r" data-channel="r">B04</div>
+                </div>
+
+                <div class="rgb-input-group">
+                  <label>G:</label>
+                  <div class="band-drop-zone bg-green filled" id="drop-g" data-channel="g">B03</div>
+                </div>
+
+                <div class="rgb-input-group">
+                  <label>B:</label>
+                  <div class="band-drop-zone bg-blue filled" id="drop-b" data-channel="b">B02</div>
+                </div>
               </div>
+
+              <button id="btnApplyComposite" class="primary-btn">Apply Composite</button>
+            </div>
+
+            <!-- INDEX TAB -->
+            <div id="tab-index" class="tab-content" style="display:none; padding-top: 5px;">
+              <div class="section-label" style="margin-top: 5px;">Index Presets</div>
+              <select id="selIndexPreset" class="light-input" style="margin-bottom: 16px;">
+                <option value="normalized,B08,B04">NDVI (Vegetation Health)</option>
+                <option value="normalized,B08,B03">GNDVI (Crop Monitoring)</option>
+                <option value="normalized,B08,B11">NDMI (Moisture)</option>
+                <option value="normalized,B08,B12">NBR (Burn Severity)</option>
+                <option value="normalized,B03,B11">MNDWI (Water Detection)</option>
+                <option value="ratio,B08,B04">Vegetation Ratio (Density)</option>
+                <option value="ratio,B08,B11">Moisture Ratio (Plant Moisture)</option>
+                <option value="ratio,B03,B08">Water Ratio (Extraction)</option>
+                <option value="ratio,B05,B04">Red Edge Ratio (Crop Stress)</option>
+                <option value="ratio,B12,B11">Burn Ratio (Area Analysis)</option>
+                <option value="custom">Custom (Drag & Drop)</option>
+              </select>
+
+              <div class="section-label">Index Format</div>
+              <select id="selIndexFormat" class="light-input" style="margin-bottom: 16px;">
+                <option value="normalized">Index (A-B)/(A+B)</option>
+                <option value="ratio">Index (A/B)</option>
+              </select>
+
+              <!-- Normalized Formula -->
+              <div id="formula-normalized" class="formula-container">
+                <div class="formula-row">
+                  <div class="band-drop-zone formula-drop bg-red filled" id="drop-idx-n1" data-var="n1">B08</div>
+                  <span class="operator">-</span>
+                  <div class="band-drop-zone formula-drop bg-orange filled" id="drop-idx-n2" data-var="n2">B04</div>
+                </div>
+                <div class="formula-divider"></div>
+                <div class="formula-row">
+                  <div class="band-drop-zone formula-drop bg-red filled" id="drop-idx-n3" data-var="n3">B08</div>
+                  <span class="operator">+</span>
+                  <div class="band-drop-zone formula-drop bg-orange filled" id="drop-idx-n4" data-var="n4">B04</div>
+                </div>
+              </div>
+
+              <!-- Ratio Formula -->
+              <div id="formula-ratio" class="formula-container" style="display: none;">
+                <div class="band-drop-zone formula-drop bg-red filled" id="drop-idx-r1" data-var="r1">B08</div>
+                <div class="formula-divider" style="width: 60px;"></div>
+                <div class="band-drop-zone bg-orange filled" id="drop-idx-r2" data-channel="r2">B04</div>
+              </div>
+
+              <button id="btnApplyIndex" class="primary-btn">Apply Index</button>
+            </div>
+
+            <!-- FORMULA BUILDER TAB -->
+            <div id="tab-formula" class="tab-content" style="display:none; padding-top: 5px;">
+              <div class="section-label" style="margin-top: 5px;">Expression</div>
               
-              <!-- INDEX TAB -->
-              <div id="tab-index" class="tab-content" style="display:none; padding-top: 5px;">
-                  <div class="section-label">Index Format</div>
-                  <select id="selIndexFormat" class="light-input" style="margin-bottom: 16px;">
-                      <option value="normalized">Index (A-B)/(A+B)</option>
-                      <option value="ratio">Index (A/B)</option>
-                  </select>
-
-                  <!-- Normalized Formula -->
-                  <div id="formula-normalized" class="formula-container">
-                      <div class="formula-row">
-                          <div class="drop-zone bg-red filled" id="drop-idx-n1" data-channel="n1">B08</div>
-                          <span>-</span>
-                          <div class="drop-zone bg-orange filled" id="drop-idx-n2" data-channel="n2">B04</div>
-                      </div>
-                      <div class="formula-divider"></div>
-                      <div class="formula-row">
-                          <div class="drop-zone bg-red filled" id="drop-idx-n3" data-channel="n3">B08</div>
-                          <span>+</span>
-                          <div class="drop-zone bg-orange filled" id="drop-idx-n4" data-channel="n4">B04</div>
-                      </div>
-                  </div>
-
-                  <!-- Ratio Formula -->
-                  <div id="formula-ratio" class="formula-container" style="display: none;">
-                      <div class="drop-zone bg-red filled" id="drop-idx-r1" data-channel="r1">B08</div>
-                      <div class="formula-divider" style="width: 60px;"></div>
-                      <div class="drop-zone bg-orange filled" id="drop-idx-r2" data-channel="r2">B04</div>
-                  </div>
-                  
-                  <button id="btnApplyIndex" class="primary-btn">Apply Index</button>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                <input type="text" id="formulaInput" placeholder="e.g. (A-B)/(A+B)" 
+                  class="light-input" style="width: 100%; font-family: 'JetBrains Mono', monospace; padding: 8px; box-sizing: border-box;">
+                <button id="btnConfirmFormula" class="primary-btn" style="width: 100%; padding: 8px 16px;">Confirm</button>
               </div>
+
+              <div id="dynamic-formula-zones" style="margin-bottom: 16px;">
+                <!-- Dynamically populated by JS based on variables -->
+                <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 10px 0;">
+                  Enter an expression and click Confirm to assign bands.
+                </div>
+              </div>
+
+              <button id="btnApplyFormula" class="primary-btn">Apply Formula</button>
+            </div>
           </div>
         </div>
       </div>
@@ -237,10 +386,46 @@
     <div class="loading-text">LOADING IMAGE...</div>
   </div>
 
+  <!-- ─── DOWNLOAD UI ───────────────────────────────────────────────────────── -->
+  <button id="btnMapDownload" title="Download Images"
+    style="position:absolute; bottom:20px; right:350px; z-index:1000; width:40px; height:40px; background:#1e253c; border:1px solid rgba(0, 242, 254, 0.5); border-radius:4px; color:#00e5ff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="7 10 12 15 17 10"></polyline>
+      <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+  </button>
+
+  <div id="modalDownloadCount" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>Download Images</h3>
+      <p style="font-size:12px; color:var(--text-dim); margin-bottom:10px;">How many images do you want to download?</p>
+      <input type="number" id="inputDownloadCount" min="1" max="10" value="1" class="light-input" style="width:100%; margin-bottom:15px; box-sizing:border-box; padding:8px;">
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="btnCancelCount" class="secondary-btn" style="padding:6px 12px; background:transparent; border:1px solid #444; color:#ccc; border-radius:4px; cursor:pointer;">Cancel</button>
+        <button id="btnConfirmCount" class="primary-btn" style="padding:6px 12px;">Start Selection</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalDownloadConfirm" class="modal-overlay hidden">
+    <div class="modal-content" style="width: 400px; max-width: 90vw;">
+      <h3>Confirm Download</h3>
+      <p style="font-size:12px; color:var(--text-dim); margin-bottom:15px;">You have selected the following images:</p>
+      <div id="downloadPreviewContainer" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-bottom:20px; max-height:200px; overflow-y:auto;">
+        <!-- Thumbnails inserted dynamically -->
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="btnCancelConfirm" class="secondary-btn" style="padding:6px 12px; background:transparent; border:1px solid #444; color:#ccc; border-radius:4px; cursor:pointer;">Cancel</button>
+        <button id="btnExecuteDownload" class="primary-btn" style="padding:6px 12px;">Download</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── SCRIPTS ───────────────────────────────────────────────────────────── -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="/static/app.js?v=2.9"></script>
-  <script src="/static/vista.js?v=1.5"></script>
 </body>
 
 </html>

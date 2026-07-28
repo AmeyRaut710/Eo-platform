@@ -46,30 +46,117 @@ def get_image_by_name(name):
 
 def reserve_image(name):
     db_data = load_db()
-    image_id = 1
-    if db_data:
-        image_id = max(db_data.keys()) + 1
-        
+    image_id = max(db_data.keys()) + 1 if db_data else 1
     display_name = f"img{image_id}"
-        
+    
     db_data[image_id] = {
-        "image_id": image_id,
-        "display_name": display_name,
-        "original_name": name,
-        "cog_path": None,
-        "created_at": datetime.datetime.now().isoformat()
+    "image_id": image_id,
+    "display_name": display_name,
+    "original_name": name,
+    "cog_path": None,
+
+    # Existing
+    "created_at": datetime.datetime.now().isoformat(),
+
+    # New Metadata (Optional)
+    "mission": None,
+    "sensor": None,
+    "processing_level": None,
+    "product_type": None,
+    "place": None,
+    "acquisition_date": None,
+    "cloud_cover": None,
+    "resolution": None,
+    "tile_id": None,
+    "bbox": None,
+    "footprint": None,
+    "crs": None,
+    "bands": None,
+    "bands_json": None,
+
+    # Future MinIO / pgSTAC
+        "minio_path": None,
+        "stac_item_id": None
     }
     save_db(db_data)
     return image_id, display_name
 
-def update_image(image_id, cog_path=None, bbox=None, bands=None, resolution=None, bands_json=None):
+def update_image(
+    image_id,
+    cog_path=None,
+    bbox=None,
+    bands=None,
+    resolution=None,
+    bands_json=None,
+    mission=None,
+    sensor=None,
+    processing_level=None,
+    product_type=None,
+    place=None,
+    acquisition_date=None,
+    cloud_cover=None,
+    tile_id=None,
+    footprint=None,
+    crs=None,
+    minio_path=None,
+    stac_item_id=None
+):
     db_data = load_db()
     image_id = int(image_id)
+
     if image_id in db_data:
         img = db_data[image_id]
-        if cog_path is not None: img["cog_path"] = cog_path
-        if bbox is not None: img["bbox"] = bbox
-        if bands is not None: img["bands"] = bands
-        if resolution is not None: img["resolution"] = resolution
-        if bands_json is not None: img["bands_json"] = bands_json
+
+        if cog_path is not None:
+            img["cog_path"] = cog_path
+
+        if bbox is not None:
+            img["bbox"] = bbox
+
+        if bands is not None:
+            img["bands"] = bands
+
+        if resolution is not None:
+            img["resolution"] = resolution
+
+        if bands_json is not None:
+            img["bands_json"] = bands_json
+
+        # New Metadata
+        if mission is not None:
+            img["mission"] = mission
+
+        if sensor is not None:
+            img["sensor"] = sensor
+
+        if processing_level is not None:
+            img["processing_level"] = processing_level
+
+        if product_type is not None:
+            img["product_type"] = product_type
+
+        if place is not None:
+            img["place"] = place
+
+        if acquisition_date is not None:
+            img["acquisition_date"] = acquisition_date
+
+        if cloud_cover is not None:
+            img["cloud_cover"] = cloud_cover
+
+        if tile_id is not None:
+            img["tile_id"] = tile_id
+
+        if footprint is not None:
+            img["footprint"] = footprint
+
+        if crs is not None:
+            img["crs"] = crs
+
+        if minio_path is not None:
+            img["minio_path"] = minio_path
+
+        if stac_item_id is not None:
+            img["stac_item_id"] = stac_item_id
+
         save_db(db_data)

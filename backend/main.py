@@ -12,7 +12,7 @@ import httpx
 
 from processing import start_processing_thread, processing_status, BASE_DIR
 from db import init_db, get_all_images, get_image_by_id
-from vista import router as vista_router, start_vista_conversion_thread
+from vista import router as vista_router, start_vista_conversion_thread, get_db_conn, vista_status
 
 # Public URL for TiTiler so the frontend can reach it directly
 TITILER_PUBLIC_URL = os.environ.get("TITILER_URL", "http://localhost:8001")
@@ -22,6 +22,16 @@ TITILER_INTERNAL_URL = os.environ.get("TITILER_INTERNAL_URL", "http://titiler:80
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    import anyio
+    limiter = anyio.to_thread.current_default_thread_limiter()
+    limiter.total_tokens = 1000
+    
+    # Initialize MinIO and pgSTAC
+    from minio_client import init_minio
+    from pgstac_client import init_pgstac
+    init_minio()
+    init_pgstac()
+    
     init_db()
     start_processing_thread()
     start_vista_conversion_thread()
@@ -361,3 +371,8 @@ def get_cog_info(image_id: int):
 def get_status():
     """Return current status of the background TIFF → COG conversion thread."""
     return processing_status
+
+@app.get("/vista/status", summary="Vista COG conversion status")
+def get_vista_status_api():
+    """Return current status of the Vista background conversion thread."""
+    return vista_status

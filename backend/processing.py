@@ -19,6 +19,7 @@ from rio_cogeo.profiles import cog_profiles
 import xarray as xr
 import rioxarray
 from db import is_image_processed, reserve_image, update_image, get_image_by_name
+from minio_client import upload_cog_to_minio
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
@@ -84,7 +85,7 @@ def calculate_raster_index(band1_path, band2_path, out_cog_path, formula_type):
         cog_profile = cog_profiles.get("deflate")
         cog_profile.update(blockxsize=512, blockysize=512)
         log.info(f"Converting index output to COG: {os.path.basename(out_cog_path)}")
-        cog_translate(temp_tif_path, out_cog_path, cog_profile, quiet=True)
+        cog_translate(temp_tif_path, out_cog_path, cog_profile, quiet=True, overview_level=6, overview_resampling="bilinear")
         log.info(f"Successfully calculated and saved index COG to {out_cog_path}")
         
     finally:
@@ -123,18 +124,19 @@ def scan_and_process():
     data_path = Path(DATA_DIR)
     
     band_suffixes = {
-        "B01": ["_B01_60m.jp2", "_B01.jp2"],
-        "B02": ["_B02_10m.jp2", "_B02.jp2"],
-        "B03": ["_B03_10m.jp2", "_B03.jp2"],
-        "B04": ["_B04_10m.jp2", "_B04.jp2"],
-        "B05": ["_B05_20m.jp2", "_B05.jp2"],
-        "B06": ["_B06_20m.jp2", "_B06.jp2"],
-        "B07": ["_B07_20m.jp2", "_B07.jp2"],
-        "B08": ["_B08_10m.jp2", "_B08.jp2"],
-        "B8A": ["_B8A_20m.jp2", "_B8A.jp2"],
-        "B09": ["_B09_60m.jp2", "_B09.jp2"],
-        "B11": ["_B11_20m.jp2", "_B11.jp2"],
-        "B12": ["_B12_20m.jp2", "_B12.jp2"]
+        "band01": ["_B01_60m.jp2", "_B01.jp2"],
+        "band02": ["_B02_10m.jp2", "_B02.jp2"],
+        "band03": ["_B03_10m.jp2", "_B03.jp2"],
+        "band04": ["_B04_10m.jp2", "_B04.jp2"],
+        "band05": ["_B05_20m.jp2", "_B05.jp2"],
+        "band06": ["_B06_20m.jp2", "_B06.jp2"],
+        "band07": ["_B07_20m.jp2", "_B07.jp2"],
+        "band08": ["_B08_10m.jp2", "_B08.jp2"],
+        "band8A": ["_B8A_20m.jp2", "_B8A.jp2"],
+        "band09": ["_B09_60m.jp2", "_B09.jp2"],
+        "band11": ["_B11_20m.jp2", "_B11.jp2"],
+        "band12": ["_B12_20m.jp2", "_B12.jp2"],
+        "tci": ["_TCI_"]
     }
     
     while True:
@@ -208,21 +210,34 @@ def scan_and_process():
                             log.info(f"COG already exists at {out_cog_path}, skipping conversion.")
                             local_path = f"/app/cogs/{object_name}"
                             local_cog_paths[b_key] = local_path
+                            try:
+                                s3_url = upload_cog_to_minio(out_cog_path, display_name, b_key)
+                                log.info(f"Uploaded to MinIO: {s3_url}")
+                            except Exception as e:
+                                log.error(f"Failed to upload to MinIO: {e}")
                         else:
                             progress_pct = int(10 + ((idx - 1) / total_bands) * 80)
                             processing_status.update({"progress": progress_pct, "message": f"Converting {b_key} to COG ({idx}/{total_bands})..."})
                             log.info(f"Converting {b_key} to COG...")
                             try:
-                                cog_translate(in_path, out_cog_path, profile, config=config, in_memory=False, quiet=True)
+                                cog_translate(in_path, out_cog_path, profile, config=config, in_memory=False, quiet=True, overview_level=6, overview_resampling="bilinear")
                                 local_path = f"/app/cogs/{object_name}"
                                 log.info(f"Saved local COG to {out_cog_path}")
+                                
+                                # Upload to MinIO
+                                try:
+                                    s3_url = upload_cog_to_minio(out_cog_path, display_name, b_key)
+                                    log.info(f"Uploaded to MinIO: {s3_url}")
+                                except Exception as e:
+                                    log.error(f"Failed to upload to MinIO: {e}")
+                                    
                                 if local_path:
                                     local_cog_paths[b_key] = local_path
                             except Exception as e:
                                 log.error(f"Error converting {in_path} to COG: {e}")
                         
-                        # Use B04 as main metadata source
-                        if b_key == "B04" or (main_local_cog is None):
+                        # Use band04 as main metadata source
+                        if b_key == "band04" or (main_local_cog is None):
                             main_local_cog = local_path
                             try:
                                 with rasterio.open(in_path) as cog:
@@ -243,6 +258,11 @@ def scan_and_process():
                         local_path = f"/app/cogs/{object_name}"
                         main_local_cog = local_path
                         try:
+                            s3_url = upload_cog_to_minio(out_cog_path, display_name, "data")
+                            log.info(f"Uploaded to MinIO: {s3_url}")
+                        except Exception as e:
+                            log.error(f"Failed to upload to MinIO: {e}")
+                        try:
                             with rasterio.open(out_cog_path) as cog:
                                 main_bbox = list(transform_bounds(cog.crs, "EPSG:4326", *cog.bounds, densify_pts=21))
                                 main_bands = cog.count
@@ -253,12 +273,19 @@ def scan_and_process():
                         processing_status.update({"progress": 30, "message": f"Converting {original_name} to COG..."})
                         try:
                             with rasterio.open(in_path) as src: input_dtype = src.dtypes[0]
-                            cog_translate(in_path, out_cog_path, profile, dtype=input_dtype, overview_level=4, overview_resampling="nearest", config=config, in_memory=False, quiet=True)
+                            cog_translate(in_path, out_cog_path, profile, dtype=input_dtype, overview_level=6, overview_resampling="bilinear", config=config, in_memory=False, quiet=True)
                             
                             processing_status.update({"progress": 70, "message": f"Saved {display_name} locally..."})
                             local_path = f"/app/cogs/{object_name}"
                             main_local_cog = local_path
                             
+                            # Upload to MinIO
+                            try:
+                                s3_url = upload_cog_to_minio(out_cog_path, display_name, "data")
+                                log.info(f"Uploaded to MinIO: {s3_url}")
+                            except Exception as e:
+                                log.error(f"Failed to upload to MinIO: {e}")
+                                
                             with rasterio.open(out_cog_path) as cog:
                                 main_bbox = list(transform_bounds(cog.crs, "EPSG:4326", *cog.bounds, densify_pts=21))
                                 main_bands = cog.count
