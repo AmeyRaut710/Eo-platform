@@ -26,32 +26,55 @@ def _row_to_stac_item(row):
     return item
 
 def init_pgstac():
-    collection = {
-        "id": "Sentinel2",
-        "type": "Collection",
-        "stac_version": "1.0.0",
-        "description": "Sentinel-2 Imagery Catalog",
-        "license": "proprietary",
-        "extent": {
-            "spatial": {
-                "bbox": [[-180, -90, 180, 90]]
+    collections = [
+        {
+            "id": "Sentinel2",
+            "type": "Collection",
+            "stac_version": "1.0.0",
+            "description": "Sentinel-2 Imagery Catalog",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [["2020-01-01T00:00:00Z", None]]}
             },
-            "temporal": {
-                "interval": [["2020-01-01T00:00:00Z", None]]
-            }
+            "links": []
         },
-        "links": []
-    }
+        {
+            "id": "Landsat",
+            "type": "Collection",
+            "stac_version": "1.0.0",
+            "description": "Landsat Imagery Catalog",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [["1970-01-01T00:00:00Z", None]]}
+            },
+            "links": []
+        },
+        {
+            "id": "Generic",
+            "type": "Collection",
+            "stac_version": "1.0.0",
+            "description": "Generic Imagery Catalog",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [["1970-01-01T00:00:00Z", None]]}
+            },
+            "links": []
+        }
+    ]
     try:
         conn = get_db_conn()
         conn.autocommit = True
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM pgstac.collections WHERE id = 'Sentinel2';")
-            if cur.fetchone() is None:
-                cur.execute("SELECT pgstac.create_collection(%s::jsonb);", (json.dumps(collection),))
-                print("pgSTAC: Created 'Sentinel2' collection.")
-            else:
-                print("pgSTAC: 'Sentinel2' collection already exists.")
+            for collection in collections:
+                cur.execute("SELECT id FROM pgstac.collections WHERE id = %s;", (collection["id"],))
+                if cur.fetchone() is None:
+                    cur.execute("SELECT pgstac.create_collection(%s::jsonb);", (json.dumps(collection),))
+                    print(f"pgSTAC: Created '{collection['id']}' collection.")
+                else:
+                    print(f"pgSTAC: '{collection['id']}' collection already exists.")
         conn.close()
     except Exception as e:
         print("pgSTAC Initialization Warning:", e)
@@ -72,7 +95,7 @@ def register_stac_item(item_dict: dict):
 def search_stac_items(filters: dict):
     """Query pgSTAC items, returning full STAC Item dicts (with id, geometry merged)."""
     conn = get_db_conn()
-    query = "SELECT id, collection, ST_AsGeoJSON(geometry), content FROM pgstac.items WHERE collection = 'Sentinel2'"
+    query = "SELECT id, collection, ST_AsGeoJSON(geometry), content FROM pgstac.items WHERE 1=1"
     params = []
 
     # Text filters
@@ -154,7 +177,7 @@ def get_distinct_filter_values(filters: dict = None):
                 params.append(max_cc)
             except ValueError:
                 pass
-                
+
     base_where = " AND ".join(where_clauses) if where_clauses else "1=1"
 
     results = {}

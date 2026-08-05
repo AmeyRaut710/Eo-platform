@@ -305,7 +305,7 @@ def get_images(request: Request):
             image_id = item["id"]
             base_url = os.environ.get("FASTAPI_INTERNAL_URL", str(request.base_url).rstrip("/"))
             stac_url = f"{base_url}/vista/stac/{image_id}"
-            tile_url = f"{TITILER_PUBLIC_URL}/stac/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}?url={urllib.parse.quote(stac_url)}&resampling=nearest"
+            tile_url = f"{TITILER_PUBLIC_URL}/stac/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}?url={urllib.parse.quote(stac_url)}&resampling=bilinear"
             
             # Determine default assets
             default_assets = ""
@@ -313,9 +313,11 @@ def get_images(request: Request):
                 default_assets = "&assets=tci"
             elif all(b in item["assets"] for b in ["band04", "band03", "band02"]):
                 default_assets = "&assets=band04&assets=band03&assets=band02&rescale=0,3000"
+            elif all(b in item["assets"] for b in ["band4", "band3", "band2"]):
+                default_assets = "&assets=band4&assets=band3&assets=band2&rescale=0,30000"
             elif item["assets"]:
                 first_band = list(item["assets"].keys())[0]
-                default_assets = f"&assets={first_band}"
+                default_assets = f"&assets={first_band}&rescale=0,30000"
                 
             results.append({
                 "name": image_id,
@@ -399,7 +401,7 @@ def search_vista_images(
             image_id = item["id"]
             base_url = os.environ.get("FASTAPI_INTERNAL_URL", str(request.base_url).rstrip("/"))
             stac_url = f"{base_url}/vista/stac/{image_id}"
-            tile_url = f"{TITILER_PUBLIC_URL}/stac/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}?url={urllib.parse.quote(stac_url)}&resampling=nearest"
+            tile_url = f"{TITILER_PUBLIC_URL}/stac/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}?url={urllib.parse.quote(stac_url)}&resampling=bilinear"
             
             # Determine default assets
             default_assets = ""
@@ -407,9 +409,11 @@ def search_vista_images(
                 default_assets = "&assets=tci"
             elif all(b in item["assets"] for b in ["band04", "band03", "band02"]):
                 default_assets = "&assets=band04&assets=band03&assets=band02&rescale=0,3000"
+            elif all(b in item["assets"] for b in ["band4", "band3", "band2"]):
+                default_assets = "&assets=band4&assets=band3&assets=band2&rescale=0,30000"
             elif item["assets"]:
                 first_band = list(item["assets"].keys())[0]
-                default_assets = f"&assets={first_band}"
+                default_assets = f"&assets={first_band}&rescale=0,30000"
 
             results.append({
                 "name": image_id,
@@ -461,7 +465,7 @@ def view_vista_image(image_name: str, request: Request, expression: str = None, 
 
     base_url = os.environ.get("FASTAPI_INTERNAL_URL", str(request.base_url).rstrip("/"))
     stac_url = f"{base_url}/vista/stac/{safe_name}"
-    tile_url = f"{TITILER_PUBLIC_URL}/stac/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}?url={urllib.parse.quote(stac_url)}&resampling=nearest"
+    tile_url = f"{TITILER_PUBLIC_URL}/stac/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}?url={urllib.parse.quote(stac_url)}&resampling=bilinear"
     
     if expression:
         tile_url += f"&expression={urllib.parse.quote(expression)}"
@@ -655,9 +659,14 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
             
         # If file is JP2 or TIFF, convert to COG TIFF
         cog_path = file_str
-        if file_str.endswith(".jp2") or file_str.endswith(".tif"):
+        lower_file = file_str.lower()
+        if lower_file.endswith(".jp2") or lower_file.endswith(".tif") or lower_file.endswith(".tiff"):
             # Ensure it is a COG
-            cog_path = file_str.replace(".jp2", "_cog.tif").replace(".tif", "_cog.tif")
+            if lower_file.endswith(".jp2") or lower_file.endswith(".tif"):
+                cog_path = file_str[:-4] + "_cog.tif"
+            else:
+                cog_path = file_str[:-5] + "_cog.tif"
+                
             if not os.path.exists(cog_path):
                 print(f"Vista Scanner: Converting {os.path.basename(file_str)} -> COG TIFF...")
                 t0 = time.time()
@@ -670,6 +679,7 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
                         cog_path, 
                         profile, 
                         config=config, 
+                        nodata=0,
                         in_memory=False, 
                         quiet=True,
                         overview_level=6,

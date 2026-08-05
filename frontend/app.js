@@ -215,12 +215,18 @@ async function searchImages() {
       } else {
         finalTileUrl += item.default_assets || "";
       }
+      finalTileUrl += "&nodata=0";
+      
+      let maxNatZoom = 14;
+      if (item.metadata && item.metadata.resolution === "30m") {
+        maxNatZoom = 13;
+      }
       
       const layer = L.tileLayer(finalTileUrl, {
         minZoom: 2,
         maxZoom: 24,
         minNativeZoom: 1,
-        maxNativeZoom: 24,
+        maxNativeZoom: maxNatZoom,
         attribution: `Vista - ${item.name}`,
         opacity: 1,
         tileSize: 256,
@@ -255,17 +261,8 @@ async function searchImages() {
       map.fitBounds([[s, w], [n, e]], { padding: [20, 20] });
     }
     
-    // Auto-select the top-most image (the one rendered last) to populate the band palette
-    if (vistaImages.length > 0) {
-      const topImage = vistaImages[vistaImages.length - 1];
-      const allCards = document.querySelectorAll(".dataset-card");
-      if (allCards.length > 0) {
-        selectVistaImage(topImage, allCards[0]);
-      } else {
-        selectVistaImage(topImage, null);
-      }
-    }
     
+
     map.invalidateSize();
     setTimeout(() => map.invalidateSize(), 200);
     setTimeout(() => map.invalidateSize(), 500);
@@ -296,7 +293,6 @@ function populateLayersList() {
     div.className = "dataset-card";
     div.style.marginBottom = "10px";
     div.style.padding = "8px";
-    div.style.cursor = "pointer";
     
     const dateStr = imgObj.date ? imgObj.date.split("T")[0] : "—";
     div.innerHTML = `
@@ -327,18 +323,20 @@ function populateLayersList() {
       }
     });
     
-    div.addEventListener("click", () => selectVistaImage(imgObj, div));
-    
     vistaLayerList.appendChild(div);
   });
 }
 
 async function selectVistaImage(imgObj, element) {
+  window.currentImageObj = imgObj;
   document.querySelectorAll(".dataset-card").forEach(el => el.classList.remove("active"));
   if (element) element.classList.add("active");
   
   const metaCard = document.getElementById("cardMeta");
   if (metaCard) metaCard.style.display = "block";
+  
+  const opsCard = document.getElementById("layerOpsCard");
+  if (opsCard) opsCard.style.display = "block";
   
   const palette = document.getElementById("bandPalette");
   if (palette) {
@@ -377,6 +375,38 @@ async function selectVistaImage(imgObj, element) {
          
          palette.appendChild(item);
       });
+      
+      // Auto-update default composite zones for the selected satellite
+      const bKeys = Object.keys(imgObj.assets);
+      const bNorms = bKeys.map(k => k.replace(/^band0?/, "").toLowerCase());
+      const formatBand = (k) => k.toUpperCase().replace("BAND0", "B0").replace("BAND", "B");
+      
+      const setZone = (id, k) => {
+        const z = document.getElementById(id);
+        if (z) z.textContent = formatBand(k);
+      };
+      
+      if (bNorms.includes("4") && bNorms.includes("3") && bNorms.includes("2")) {
+        setZone("drop-r", bKeys[bNorms.indexOf("4")]);
+        setZone("drop-g", bKeys[bNorms.indexOf("3")]);
+        setZone("drop-b", bKeys[bNorms.indexOf("2")]);
+      } else if (bKeys.length >= 3) {
+        setZone("drop-r", bKeys[0]);
+        setZone("drop-g", bKeys[1]);
+        setZone("drop-b", bKeys[2]);
+      }
+      
+      // Also update NDVI indices if available (usually NIR=B8/B5, RED=B4)
+      if (bNorms.includes("4") && (bNorms.includes("8") || bNorms.includes("5"))) {
+        const nirK = bNorms.includes("8") ? bKeys[bNorms.indexOf("8")] : bKeys[bNorms.indexOf("5")];
+        const redK = bKeys[bNorms.indexOf("4")];
+        setZone("drop-idx-n1", nirK);
+        setZone("drop-idx-n2", redK);
+        setZone("drop-idx-n3", nirK);
+        setZone("drop-idx-n4", redK);
+        setZone("drop-idx-r1", nirK);
+        setZone("drop-idx-r2", redK);
+      }
     }
   }
   
@@ -409,6 +439,19 @@ async function selectVistaImage(imgObj, element) {
 // GLOBAL BAND ARITHMETIC APPLICATION
 // ══════════════════════════════════════════════════════════════════════════════
 
+function resolveBand(bName) {
+  if (!bName) return "";
+  if (window.currentImageObj && window.currentImageObj.assets) {
+    const keys = Object.keys(window.currentImageObj.assets);
+    const norm = bName.replace(/^B0?/, "").toLowerCase();
+    for (let k of keys) {
+      const kNorm = k.replace(/^band0?/, "").toLowerCase();
+      if (norm === kNorm) return k;
+    }
+  }
+  return bName.replace("B", "band");
+}
+
 async function applyVisualization() {
   const loading = document.getElementById("loadingOverlay");
   if (loading) loading.classList.remove("hidden");
@@ -424,10 +467,18 @@ async function applyVisualization() {
       if (r === "B04" && g === "B03" && b === "B02") {
         queryParams = ""; // default TCI
       } else {
-        const ar = r.replace("B", "band");
-        const ag = g.replace("B", "band");
-        const ab = b.replace("B", "band");
-        queryParams = `?assets=${ar}&assets=${ag}&assets=${ab}&asset_bidx=${ar}|1&asset_bidx=${ag}|1&asset_bidx=${ab}|1&rescale=0,3000`;
+        const ar = resolveBand(r);
+        const ag = resolveBand(g);
+        const ab = resolveBand(b);
+        
+        let cRescale = "0,3000";
+        let targetImg = window.currentImageObj || (vistaImages && vistaImages.length > 0 ? vistaImages[0] : null);
+        if (targetImg && targetImg.default_assets) {
+          const match = targetImg.default_assets.match(/rescale=([^&]+)/);
+          if (match) cRescale = match[1];
+        }
+        
+        queryParams = `?assets=${ar}&assets=${ag}&assets=${ab}&asset_bidx=${ar}|1&asset_bidx=${ag}|1&asset_bidx=${ab}|1&rescale=${cRescale}`;
       }
     } else if (activeTab === "index") {
       const format = document.getElementById("selIndexFormat").value;
@@ -440,10 +491,10 @@ async function applyVisualization() {
         const n3 = document.getElementById("drop-idx-n3").textContent.trim() || "B08";
         const n4 = document.getElementById("drop-idx-n4").textContent.trim() || "B04";
         
-        const an1 = n1.replace("B", "band");
-        const an2 = n2.replace("B", "band");
-        const an3 = n3.replace("B", "band");
-        const an4 = n4.replace("B", "band");
+        const an1 = resolveBand(n1);
+        const an2 = resolveBand(n2);
+        const an3 = resolveBand(n3);
+        const an4 = resolveBand(n4);
         
         if (n1 === "B08" && n2 === "B04" && n3 === "B08" && n4 === "B04") {
           expr = encodeURIComponent(`(${an1}-${an2})/(${an1}+${an2})`);
@@ -464,8 +515,8 @@ async function applyVisualization() {
         const r1 = document.getElementById("drop-idx-r1").textContent.trim() || "B08";
         const r2 = document.getElementById("drop-idx-r2").textContent.trim() || "B04";
         
-        const ar1 = r1.replace("B", "band");
-        const ar2 = r2.replace("B", "band");
+        const ar1 = resolveBand(r1);
+        const ar2 = resolveBand(r2);
         
         const uniqueAssets = [...new Set([ar1, ar2])];
         const bidxQuery = uniqueAssets.map(a => `asset_bidx=${a}|1`).join("&");
@@ -538,6 +589,7 @@ async function applyVisualization() {
       } else {
         finalTileUrl += imgObj.default_assets || "";
       }
+      finalTileUrl += "&nodata=0";
       imgObj.layer.setUrl(finalTileUrl);
     });
     
@@ -1234,6 +1286,65 @@ document.addEventListener("DOMContentLoaded", () => {
     searchInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
         searchLocation(searchInput.value);
+      }
+    });
+  }
+
+  // Mission filter listener for Layer Operations panel visibility
+  const filterMission = document.getElementById("filterMission");
+  if (filterMission) {
+    filterMission.addEventListener("change", (e) => {
+      const mission = e.target.value.toLowerCase();
+      const opsCard = document.getElementById("layerOpsCard");
+      const palette = document.getElementById("bandPalette");
+      if (!opsCard || !palette) return;
+
+      if (!mission) {
+        opsCard.style.display = "none";
+      } else {
+        opsCard.style.display = "block";
+        palette.innerHTML = "";
+        
+        let simulatedAssets = [];
+        if (mission.includes("landsat")) {
+          simulatedAssets = ["band1", "band2", "band3", "band4", "band5", "band6", "band7", "band8", "band9", "band10", "band11"];
+        } else if (mission.includes("sentinel")) {
+          simulatedAssets = ["band01", "band02", "band03", "band04", "band05", "band06", "band07", "band08", "band8a", "band09", "band10", "band11", "band12"];
+        }
+        
+        const colorMap = {
+          'band01': 'bg-purple', 'band1': 'bg-purple',
+          'band02': 'bg-blue',   'band2': 'bg-blue',
+          'band03': 'bg-green',  'band3': 'bg-green',
+          'band04': 'bg-orange', 'band4': 'bg-orange',
+          'band05': 'bg-red',    'band5': 'bg-red',
+          'band06': 'bg-dark-orange', 'band6': 'bg-dark-orange',
+          'band07': 'bg-dark-red',    'band7': 'bg-dark-red',
+          'band08': 'bg-red',    'band8': 'bg-red',
+          'band8a': 'bg-deep-red',
+          'band09': 'bg-brick-red', 'band9': 'bg-brick-red',
+          'band10': 'bg-violet', 'band11': 'bg-violet', 'band12': 'bg-brown'
+        };
+        
+        simulatedAssets.forEach(key => {
+           const item = document.createElement("div");
+           const bgClass = colorMap[key] || "bg-blue";
+           item.className = `band-item ${bgClass}`;
+           item.draggable = true;
+           item.textContent = key.toUpperCase().replace("BAND0", "B0").replace("BAND", "B");
+           
+           item.addEventListener("dragstart", (ev) => {
+             window.draggedItem = ev.target;
+             ev.dataTransfer.setData("text/plain", ev.target.textContent);
+             setTimeout(() => ev.target.style.opacity = '0.5', 0);
+           });
+           item.addEventListener("dragend", (ev) => {
+             setTimeout(() => ev.target.style.opacity = '1', 0);
+             window.draggedItem = null;
+           });
+           
+           palette.appendChild(item);
+        });
       }
     });
   }
