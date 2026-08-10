@@ -62,6 +62,18 @@ def init_pgstac():
                 "temporal": {"interval": [["1970-01-01T00:00:00Z", None]]}
             },
             "links": []
+        },
+        {
+            "id": "Resourcesat-2",
+            "type": "Collection",
+            "stac_version": "1.0.0",
+            "description": "Resourcesat-2 (IRS-R2) Imagery Catalog",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [["2011-04-20T00:00:00Z", None]]}
+            },
+            "links": []
         }
     ]
     try:

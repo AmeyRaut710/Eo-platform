@@ -290,6 +290,127 @@ def extract_generic_metadata(tif_path):
         "added_time": os.path.getmtime(tif_path)
     }
 
+def _parse_band_meta(meta_path):
+    """Parse ISRO BAND_META.txt / .meta key=value files."""
+    meta = {}
+    try:
+        with open(meta_path, 'r') as f:
+            for line in f:
+                if '=' in line:
+                    k, v = line.split('=', 1)
+                    meta[k.strip()] = v.strip()
+    except Exception:
+        pass
+    return meta
+
+def extract_resourcesat2_metadata(meta_path):
+    """Extract metadata from Resourcesat-2 BAND_META.txt."""
+    folder_path = os.path.dirname(meta_path)
+    meta = _parse_band_meta(meta_path)
+    
+    satellite = meta.get("SatID", "IRS-R2")
+    sensor = meta.get("Sensor", "LISS-IV")
+    # Map sensor codes to human-readable names
+    sensor_names = {"L4FX": "LISS-IV", "L4MX": "LISS-IV-MX", "L3": "LISS-III", "AWFS": "AWiFS"}
+    sensor_display = sensor_names.get(sensor, sensor)
+    
+    path_num = meta.get("Path", "0").strip()
+    row_num = meta.get("Row", "0").strip()
+    tile_id = f"P{path_num}R{row_num}" if path_num and row_num else "Unknown"
+    
+    # Parse date
+    date_str = meta.get("DateOfPass", "")
+    acq_date = "1970-01-01T00:00:00Z"
+    if date_str:
+        try:
+            import datetime
+            dt = datetime.datetime.strptime(date_str.strip(), "%d-%b-%Y")
+            scene_time = meta.get("SceneCenterTime", "")
+            if scene_time:
+                time_part = scene_time.strip().split(" ")[-1].split(".")[0]  # HH:MM:SS
+                acq_date = f"{dt.strftime('%Y-%m-%d')}T{time_part}Z"
+            else:
+                acq_date = dt.strftime("%Y-%m-%dT00:00:00Z")
+        except Exception:
+            pass
+    
+    proc_level = meta.get("ProdType", meta.get("ProcessingLevel", "STD"))
+    orbit = meta.get("ImagingOrbitNo", "0")
+    cloud_cover = 0.0
+    cp = meta.get("CloudPercent", "").strip()
+    if cp:
+        try:
+            cloud_cover = float(cp)
+        except Exception:
+            pass
+    
+    bits_per_pixel = int(meta.get("BitsPerPixel", "10"))
+    
+    resolution_val = meta.get("OutputResolutionAlong", meta.get("InputResolutionAlong", "5.8"))
+    try:
+        resolution = float(resolution_val.strip())
+    except Exception:
+        resolution = 5.8
+    
+    # Find a band TIF to get CRS/bounds
+    band_tifs = list(Path(folder_path).glob("BAND*.tif"))
+    if not band_tifs:
+        band_tifs = list(Path(folder_path).rglob("*.tif"))
+    if not band_tifs:
+        return None
+    
+    import rasterio
+    from rasterio.warp import transform_bounds
+    try:
+        with rasterio.open(str(band_tifs[0])) as src:
+            crs = src.crs.to_string() if src.crs else "EPSG:32643"
+            width = src.width
+            height = src.height
+            bounds = list(transform_bounds(src.crs, "EPSG:4326", *src.bounds, densify_pts=21))
+    except Exception:
+        return None
+    
+    center_lon = (bounds[0] + bounds[2]) / 2
+    center_lat = (bounds[1] + bounds[3]) / 2
+    
+    footprint_poly = {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [bounds[0], bounds[1]],
+                [bounds[0], bounds[3]],
+                [bounds[2], bounds[3]],
+                [bounds[2], bounds[1]],
+                [bounds[0], bounds[1]]
+            ]
+        ]
+    }
+    
+    place = reverse_geocode(center_lat, center_lon)
+    
+    return {
+        "mission": "Resourcesat-2",
+        "satellite": satellite,
+        "sensor": sensor_display,
+        "product_type": "GEOTIFF",
+        "processing_level": proc_level,
+        "acquisition_date": acq_date,
+        "processing_date": acq_date,
+        "tile_id": tile_id,
+        "orbit": orbit,
+        "cloud_cover": cloud_cover,
+        "resolution": f"{int(resolution)}m",
+        "crs": crs,
+        "bbox": bounds,
+        "footprint": footprint_poly,
+        "width": width,
+        "height": height,
+        "place": place,
+        "bits_per_pixel": bits_per_pixel,
+        "original_name": os.path.basename(folder_path),
+        "added_time": os.path.getmtime(folder_path)
+    }
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/images", summary="List images in Vista Mode")
@@ -313,6 +434,8 @@ def get_images(request: Request):
                 default_assets = "&assets=tci"
             elif all(b in item["assets"] for b in ["band04", "band03", "band02"]):
                 default_assets = "&assets=band04&assets=band03&assets=band02&rescale=0,3000"
+            elif all(b in item["assets"] for b in ["band4", "band3", "band2"]) and item["properties"].get("mission") == "Resourcesat-2":
+                default_assets = "&assets=band4&assets=band3&assets=band2&asset_bidx=band4|1&asset_bidx=band3|1&asset_bidx=band2|1&rescale=0,600"
             elif all(b in item["assets"] for b in ["band4", "band3", "band2"]):
                 default_assets = "&assets=band4&assets=band3&assets=band2&rescale=0,30000"
             elif item["assets"]:
@@ -409,6 +532,8 @@ def search_vista_images(
                 default_assets = "&assets=tci"
             elif all(b in item["assets"] for b in ["band04", "band03", "band02"]):
                 default_assets = "&assets=band04&assets=band03&assets=band02&rescale=0,3000"
+            elif all(b in item["assets"] for b in ["band4", "band3", "band2"]) and item["properties"].get("mission") == "Resourcesat-2":
+                default_assets = "&assets=band4&assets=band3&assets=band2&asset_bidx=band4|1&asset_bidx=band3|1&asset_bidx=band2|1&rescale=0,600"
             elif all(b in item["assets"] for b in ["band4", "band3", "band2"]):
                 default_assets = "&assets=band4&assets=band3&assets=band2&rescale=0,30000"
             elif item["assets"]:
@@ -571,6 +696,8 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
         metadata = extract_safe_metadata(metadata_file)
     elif data_type == "Landsat":
         metadata = extract_landsat_metadata(metadata_file)
+    elif data_type == "Resourcesat-2":
+        metadata = extract_resourcesat2_metadata(metadata_file)
     else:
         metadata = extract_generic_metadata(metadata_file)
         
@@ -606,6 +733,12 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
         prefix_map = {
             "B1": "band1", "B2": "band2", "B3": "band3", "B4": "band4", "B5": "band5", 
             "B6": "band6", "B7": "band7", "B8": "band8", "B9": "band9", "B10": "band10", "B11": "band11"
+        }
+    elif data_type == "Resourcesat-2":
+        # Resourcesat-2 LISS-III/IV bands: BAND2 (Green), BAND3 (Red), BAND4 (NIR), BAND5 (SWIR)
+        band_suffixes = ["BAND2.tif", "BAND3.tif", "BAND4.tif", "BAND5.tif"]
+        prefix_map = {
+            "BAND2": "band2", "BAND3": "band3", "BAND4": "band4", "BAND5": "band5"
         }
     else:
         # Generic raster, just grab the file itself
@@ -768,13 +901,23 @@ def convert_vista_jp2_to_cogs():
                 if process_dataset(folder_path, image_name, "Landsat", mtl_path):
                     processing_occurred = True
                     
-            # 3. Generic TIFFs (Direct files in subfolders that aren't Sentinel or Landsat)
+            # 3. Resourcesat-2 (ISRO — detected by BAND_META.txt)
+            band_meta_files = glob.glob(os.path.join(VISTA_DATA_DIR, "**", "BAND_META.txt"), recursive=True)
+            for bm_path in band_meta_files:
+                folder_path = os.path.dirname(bm_path)
+                image_name = os.path.basename(folder_path)
+                if process_dataset(folder_path, image_name, "Resourcesat-2", bm_path):
+                    processing_occurred = True
+                    
+            # 4. Generic TIFFs (Direct files in subfolders that aren't Sentinel, Landsat, or Resourcesat)
             if os.path.exists(VISTA_DATA_DIR):
                 for item in os.listdir(VISTA_DATA_DIR):
                     sub_path = os.path.join(VISTA_DATA_DIR, item)
                     if os.path.isdir(sub_path):
                         is_known = False
-                        if list(Path(sub_path).rglob("MTD_MSIL*.xml")) or list(Path(sub_path).rglob("*_MTL.txt")):
+                        if (list(Path(sub_path).rglob("MTD_MSIL*.xml")) or 
+                            list(Path(sub_path).rglob("*_MTL.txt")) or
+                            list(Path(sub_path).rglob("BAND_META.txt"))):
                             is_known = True
                         if not is_known:
                             tifs = list(Path(sub_path).rglob("*.tif"))
