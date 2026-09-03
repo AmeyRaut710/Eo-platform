@@ -6,8 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EO Platform — Hyderabad</title>
 
+  <!-- Suppress favicon 404 -->
+  <link rel="icon" href="data:," />
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Leaflet Draw CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -44,10 +50,8 @@
   <!-- ─── TOP BAR ───────────────────────────────────────────────────────────── -->
   <header class="topbar">
     <div class="topbar__brand">
-      <span class="topbar__icon">🛰</span>
-      <span class="topbar__title"><strong>DRISHTI</strong></span>
+      <img src="/static/logo.png" alt="DRISHTI Logo" width="78" height="60" style="margin-left: 10px;" />
     </div>
-
   </header>
 
 
@@ -150,6 +154,11 @@
               </div>
             </div>
 
+            <button id="btnAnimate"
+              style="width:100%; padding:10px; margin-bottom:10px; background:linear-gradient(135deg, #1e293b, #0f172a); color:#00e5ff; border:1px solid rgba(0, 242, 254, 0.3); border-radius:4px; font-weight:bold; font-size:12px; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px;">
+              ANIMATE
+            </button>
+
             <button id="btnSearchSubmit"
               style="width:100%; padding:10px; background:linear-gradient(135deg, #00e5ff, #0097a7); color:black; border:none; border-radius:4px; font-weight:bold; font-size:12px; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px;">
               SUBMIT SEARCH
@@ -168,7 +177,47 @@
     </aside>
 
     <!-- MAP -->
-    <div id="map"></div>
+    <div id="map">
+      <!-- TIMELINE CONTAINER -->
+      <div id="timelineContainer"
+        style="display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 800px; background: var(--bg-card, #121930); border: 1px solid rgba(0, 242, 254, 0.3); border-radius: 8px; z-index: 1000; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; color: var(--text-light, #fff);">
+          <div style="font-size: 14px; font-weight: bold; color: #00e5ff;">Current Acquisition Date: <span
+              id="timelineCurrentDate">--</span></div>
+          <div id="timelineMetadata" style="font-size: 11px; color: var(--text-dim, #8892b0); text-align: right;"></div>
+        </div>
+
+        <div id="timelineScroll"
+          style="overflow-x: auto; overflow-y: hidden; padding-bottom: 20px; margin: 20px 0; scrollbar-width: thin; scrollbar-color: #00e5ff rgba(0, 242, 254, 0.1);">
+          <div id="timelineTrack" style="position: relative; height: 50px; margin: 0 30px;">
+            <!-- Pointer -->
+            <div id="timelinePointer"
+              style="position: absolute; top: -15px; left: 0%; transform: translateX(-50%); text-align: center; cursor: grab; z-index: 10;">
+              <div style="color: #00e5ff; font-size: 14px; margin-bottom: 2px;">▼</div>
+              <div style="width: 2px; height: 40px; background: #00e5ff; margin: 0 auto;"></div>
+            </div>
+
+            <!-- Line -->
+            <div id="timelineLine"
+              style="position: absolute; top: 25px; left: 0; right: 0; height: 2px; background: rgba(0, 242, 254, 0.2);">
+            </div>
+
+            <!-- Ticks & Labels Container -->
+            <div id="timelineTicks" style="position: absolute; top: 25px; left: 0; right: 0; height: 2px;">
+              <!-- Dynamically generated ticks will go here -->
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 10px;">
+          <button id="btnTimelinePrev" class="timeline-btn">◀</button>
+          <button id="btnTimelinePlay" class="timeline-btn play-btn" style="width: 100px;">▶ PLAY</button>
+          <button id="btnTimelineNext" class="timeline-btn">▶</button>
+        </div>
+      </div>
+    </div>
 
     <!-- SIDE PANEL -->
     <aside class="panel">
@@ -186,12 +235,14 @@
           <div class="band-palette" id="bandPalette">
             <!-- Dynamically populated by JS based on active layer assets -->
           </div>
-
-          <!-- Tabs -->
-          <div class="tabs">
-            <div class="tab active" data-tab="composite">Composite</div>
-            <div class="tab" data-tab="index">Index</div>
-            <div class="tab" data-tab="formula">Formula Builder</div>
+          <!-- Operations Dropdown -->
+          <div style="padding: 0 16px; margin-bottom: 12px;">
+            <select id="layerOperationSelect" class="light-input">
+              <option value="composite">Composite</option>
+              <option value="index">Index</option>
+              <option value="formula">Formula Builder</option>
+              <option value="custom">Custom Script</option>
+            </select>
           </div>
 
           <div style="padding:0 16px 16px 16px;">
@@ -310,6 +361,53 @@
 
               <button id="btnApplyFormula" class="primary-btn">Apply Formula</button>
             </div>
+
+            <!-- CUSTOM SCRIPT TAB -->
+            <div id="tab-custom" class="tab-content" style="display: none; padding-top: 5px;">
+              <div class="section-label" style="margin-top: 5px;">Script Templates</div>
+              <select id="selScriptTemplate" class="light-input" style="margin-bottom: 10px;">
+                <option value="ndvi">NDVI (B08, B04)</option>
+                <option value="true_color">True Color (B04, B03, B02)</option>
+                <option value="ndwi">NDWI (B03, B08)</option>
+                <option value="blank">Blank Script</option>
+              </select>
+
+              <div id="editor-wrapper"
+                style="display:flex; flex-direction:column; background: var(--bg2); border: 1px solid rgba(0, 242, 254, 0.3); border-radius: 4px; overflow: hidden;">
+                <!-- Editor Header -->
+                <div class="editor-header"
+                  style="display:flex; justify-content:flex-end; align-items:center; gap:15px; padding:5px 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(0, 242, 254, 0.3);">
+                  <div style="display:flex; align-items:center; gap:5px; color:#bbb; font-size:14px;">
+                    <span>🌙</span>
+                    <label class="theme-switch"
+                      style="position:relative; display:inline-block; width:34px; height:18px;">
+                      <input type="checkbox" id="btnToggleTheme" checked style="opacity:0; width:0; height:0;">
+                      <span class="slider round"
+                        style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#1677ff; transition:.4s; border-radius:34px;">
+                        <span class="slider-knob"
+                          style="position:absolute; content:''; height:14px; width:14px; left:2px; bottom:2px; background-color:white; transition:.4s; border-radius:50%;"></span>
+                      </span>
+                    </label>
+                    <span>☀️</span>
+                  </div>
+                  <button type="button" id="btnToggleEditor"
+                    style="background:transparent; border:none; color:#00e5ff; cursor:pointer; font-size:18px; padding:0; display:flex; align-items:center; justify-content:center;"
+                    title="Maximize/Minimize">⤢</button>
+                </div>
+
+                <!-- Monaco Container -->
+                <div id="editor-container" style="width:100%; height:300px; position:relative; z-index:1;"></div>
+
+                <!-- Editor Footer -->
+                <div class="editor-footer"
+                  style="padding:10px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(0, 242, 254, 0.3); display:flex; justify-content:space-between; align-items:center;">
+                  <button type="button" id="btnValidateScript" class="secondary-btn"
+                    style="border:1px solid #444; background:transparent; color:#fff; cursor:pointer; padding: 6px 12px;">Validate</button>
+                  <button type="button" id="btnApplyScript" class="primary-btn"
+                    style="padding: 6px 20px; font-weight:bold; background:#1677ff;">Apply</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -331,7 +429,7 @@
       </div>
 
       <!-- Metadata card -->
-      <div class="card" id="cardMeta">
+      <div class="card" id="cardMeta" style="display: none;">
         <div class="card__header">COG METADATA</div>
         <div class="card__body" id="metaBody">
           <div class="stat-row"><span>Resolution</span><span id="metaWidth">—</span></div>
@@ -433,7 +531,14 @@
 
   <!-- ─── SCRIPTS ───────────────────────────────────────────────────────────── -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+
+
+  <!-- Monaco Editor Loader (Loaded after Leaflet to prevent AMD define conflict) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
   <script src="/static/app.js?v=2.9"></script>
 </body>
 

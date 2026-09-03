@@ -314,6 +314,7 @@ body::before {
 
 /* ── CARD ─────────────────────────────────────────────────────────────────── */
 .card {
+  flex-shrink: 0;
   background: rgba(18, 25, 48, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -444,21 +445,24 @@ body::before {
 }
 
 @keyframes progress-stripe {
-  0% { background-position: 0 0; }
-  100% { background-position: 40px 0; }
+  0% {
+    background-position: 0 0;
+  }
+
+  100% {
+    background-position: 40px 0;
+  }
 }
 
 .progress-bar.loading {
-  background: linear-gradient(
-    45deg,
-    rgba(0, 242, 254, 0.15) 25%,
-    rgba(0, 230, 118, 0.5) 25%,
-    rgba(0, 230, 118, 0.5) 50%,
-    rgba(0, 242, 254, 0.15) 50%,
-    rgba(0, 242, 254, 0.15) 75%,
-    rgba(0, 230, 118, 0.5) 75%,
-    rgba(0, 230, 118, 0.5) 100%
-  );
+  background: linear-gradient(45deg,
+      rgba(0, 242, 254, 0.15) 25%,
+      rgba(0, 230, 118, 0.5) 25%,
+      rgba(0, 230, 118, 0.5) 50%,
+      rgba(0, 242, 254, 0.15) 50%,
+      rgba(0, 242, 254, 0.15) 75%,
+      rgba(0, 230, 118, 0.5) 75%,
+      rgba(0, 230, 118, 0.5) 100%);
   background-size: 40px 40px;
   animation: progress-stripe 1s linear infinite;
 }
@@ -859,6 +863,7 @@ body::before {
   margin: 6px 0;
   border-radius: 2px;
 }
+
 /* Dropdown Styles */
 select {
   background: var(--bg2);
@@ -896,26 +901,32 @@ select:focus {
   transition: background 0.2s, border-color 0.2s;
   text-align: center;
 }
+
 .calc-btn:hover {
   background: rgba(0, 242, 254, 0.1);
   border-color: var(--cyan);
 }
+
 .calc-btn:active {
   background: rgba(0, 242, 254, 0.2);
 }
+
 .op-btn {
   font-weight: bold;
   font-size: 13px;
   color: var(--cyan);
 }
+
 .fn-btn {
   color: var(--text-dim);
 }
+
 #formulaInput:focus {
   outline: none;
   border-color: var(--cyan);
   box-shadow: 0 0 8px rgba(0, 242, 254, 0.2);
 }
+
 #formulaInput.drag-over {
   border-color: var(--green);
   background: rgba(0, 255, 136, 0.1) !important;
@@ -924,31 +935,197 @@ select:focus {
 /* Modal CSS */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.7);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
 }
+
 .modal-overlay.hidden {
   display: none;
 }
+
 .modal-content {
   background: var(--bg1);
   padding: 20px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   color: var(--text);
   min-width: 250px;
 }
+
 .modal-content h3 {
   margin-top: 0;
   color: var(--cyan);
   font-family: var(--font-ui);
 }
+
 #btnMapDownload:hover {
   background: var(--cyan) !important;
   color: #000 !important;
+}
+
+/* TIMELINE FEATURE */
+#timelineContainer {
+  transition: all 0.3s ease;
+}
+
+.timeline-tick {
+  position: absolute;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-card, #121930);
+  border: 2px solid rgba(0, 242, 254, 0.5);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 5;
+}
+
+.timeline-tick:hover,
+.timeline-tick.active {
+  background: #00e5ff;
+  border-color: #00e5ff;
+  box-shadow: 0 0 10px #00e5ff;
+}
+
+.timeline-label {
+  position: absolute;
+  top: 15px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--text-dim, #8892b0);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.timeline-btn {
+  background: transparent;
+  color: #00e5ff;
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  border-radius: 4px;
+  padding: 5px 15px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.timeline-btn:hover {
+  background: rgba(0, 242, 254, 0.1);
+  border-color: #00e5ff;
+}
+
+.timeline-btn.play-btn {
+  background: rgba(0, 242, 254, 0.1);
+}
+
+.timeline-btn.play-btn:hover {
+  background: rgba(0, 242, 254, 0.2);
+}
+
+.timeline-tooltip {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(18, 25, 48, 0.9);
+  border: 1px solid #00e5ff;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  pointer-events: none;
+  white-space: pre-line;
+  z-index: 100;
+  display: none;
+  text-align: left;
+}
+
+.timeline-tick:hover .timeline-tooltip {
+  display: block;
+}
+
+.leaflet-interactive.timeline-highlight {
+  stroke: #00e5ff !important;
+  stroke-width: 3px !important;
+  fill: none !important;
+  filter: drop-shadow(0 0 5px #00e5ff);
+}
+
+.maximized-editor {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 650px !important;
+  height: 450px !important;
+  z-index: 10000 !important;
+  background: var(--bg1) !important;
+  border: 1px solid rgba(0, 242, 254, 0.3) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8) !important;
+}
+
+.maximized-editor #editor-container {
+  flex: 1 !important;
+  height: auto !important;
+  margin-bottom: 0 !important;
+}
+
+.slider-knob {
+  transform: translateX(16px);
+}
+
+input:checked+.slider .slider-knob {
+  transform: translateX(0);
+}
+
+/* ── BHUVAN GIS WIDGET OVERRIDES ─────────────────────────── */
+.leaflet-control-layers {
+  background: #fff !important;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5) !important;
+  color: #333 !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  padding: 10px !important;
+}
+
+.leaflet-control-layers-list label {
+  display: flex !important;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.leaflet-control-layers-list input[type="radio"],
+.leaflet-control-layers-list input[type="checkbox"] {
+  margin-right: 8px !important;
+  accent-color: #0078ff;
+}
+
+.leaflet-control-layers-separator {
+  border-top: 1px solid #ddd !important;
+  margin: 10px 0 !important;
+}
+
+/* Coordinates HUD */
+#coords-hud {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(4px);
+  padding: 8px 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px !important;
+  color: #00e5ff !important;
+  text-shadow: 0 0 5px rgba(0, 229, 255, 0.5);
 }

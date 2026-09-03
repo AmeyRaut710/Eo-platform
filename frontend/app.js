@@ -1,5 +1,5 @@
 /**
- * app.js — EO Platform Frontend (Vista Mode Redesign)
+ * app.js â EO Platform Frontend (Vista Mode Redesign)
  *
  * Responsibilities:
  *  - Initialize Leaflet map centered on Hyderabad
@@ -12,14 +12,14 @@
 
 "use strict";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// ââ Config ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const BACKEND_URL  = "http://localhost:8000";
 const TITILER_URL  = "http://localhost:8001";
-const HYDERABAD    = [17.3850, 78.4867];
-const DEFAULT_ZOOM = 10;
+const INDIA    = [20.5937, 78.9629];
+const DEFAULT_ZOOM = 5;
 const POLL_MS      = 4000;  // status poll interval
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ââ State âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 let map;
 let vistaLayers = [];
 let vistaImages = [];
@@ -31,19 +31,68 @@ let imagesToDownload = 0;
 let selectedDownloadImages = [];
 let footprintLayers = [];
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // MAP INITIALISATION
-// ══════════════════════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function initMap() {
   map = L.map("map", {
-    center: HYDERABAD,
+    center: INDIA,
     zoom: DEFAULT_ZOOM,
     zoomControl: true,
     attributionControl: false,
     minZoom: 2,
     maxZoom: 24
   });
+
+  // Base Maps (Bhuvan WMS & Esri)
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri'
+  });
+
+  const bhuvanBaseAdmin = L.tileLayer.wms('https://bhuvan-vec1.nrsc.gov.in/bhuvan/gwc/service/wms', {
+    layers: 'india3', 
+    format: 'image/jpeg',
+    transparent: false,
+    version: '1.1.1',
+    attribution: 'NRSC/ISRO Bhuvan'
+  });
+
+  // Default to Satellite
+  satellite.addTo(map);
+
+  // Overlay Maps (Bhuvan WMS)
+  const bhuvanAdmin = L.tileLayer.wms('https://bhuvan-vec1.nrsc.gov.in/bhuvan/gwc/service/wms', {
+    layers: 'bhuvan_no_data', // Generic placeholder for actual Bhuvan admin layer
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    attribution: 'NRSC/ISRO Bhuvan',
+    zIndex: 200
+  });
+
+  const infrastructure = L.tileLayer.wms('https://bhuvan-vec1.nrsc.gov.in/bhuvan/gwc/service/wms', {
+    layers: 'bhuvan_no_data', 
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    attribution: 'NRSC/ISRO Bhuvan',
+    zIndex: 200
+  });
+
+  // Layer Control
+  const baseMaps = {
+    "Satellite": satellite,
+    "Base Admin": bhuvanBaseAdmin
+  };
+  const overlayMaps = {
+    "Admin Boundary": bhuvanAdmin,
+    "Infrastructure": infrastructure
+  };
+  
+  L.control.layers(baseMaps, overlayMaps, { position: 'topright', collapsed: true }).addTo(map);
+
+
 
   // Scale bar
   L.control.scale({ imperial: false }).addTo(map);
@@ -56,27 +105,67 @@ function initMap() {
 
   // Events
   map.on("zoom",       updateZoomInfo);
+  map.on("zoom",       updateZoomHUD);
   map.on("mousemove",  updateCoords);
   map.on("click",      onMapClick);
-  map.on("zoomend",    updatePyramidLevel);
 
-  updateZoomInfo();
+  // Trigger initial HUD update
+  updateZoomHUD();
+  
+  map.on("zoomend",    updatePyramidLevel);
   updatePyramidLevel();
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// VISTA LAYERS LOADING
-// ══════════════════════════════════════════════════════════════════════════════
+function decimalToDMS(deg) {
+  const d = Math.floor(deg);
+  const minfloat = (deg - d) * 60;
+  const m = Math.floor(minfloat);
+  const secfloat = (minfloat - m) * 60;
+  const s = Math.round(secfloat);
+  return `${d}° ${m}' ${s}"`;
+}
 
-// ══════════════════════════════════════════════════════════════════════════════
+function updateCoords(e) {
+  const hud = document.getElementById("coords-hud");
+  if (hud) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    const latDir = lat >= 0 ? 'N' : 'S';
+    const lngDir = lng >= 0 ? 'E' : 'W';
+    
+    const latDec = Math.abs(lat).toFixed(4);
+    const lngDec = Math.abs(lng).toFixed(4);
+    
+    const latDMS = decimalToDMS(Math.abs(lat)) + latDir;
+    const lngDMS = decimalToDMS(Math.abs(lng)) + lngDir;
+    
+    hud.innerText = `Lat: ${latDec}° (${latDMS}) | Lon: ${lngDec}° (${lngDMS}) | Zoom: ${map.getZoom()}`;
+  }
+}
+
+function updateZoomHUD() {
+  const hud = document.getElementById("coords-hud");
+  if (hud && hud.innerText.includes('Zoom')) {
+    hud.innerText = hud.innerText.replace(/Zoom: \d+/, `Zoom: ${map.getZoom()}`);
+  } else if (hud) {
+    hud.innerText = `Lat: -- | Lon: -- | Zoom: ${map.getZoom()}`;
+  }
+}
+
+
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// VISTA LAYERS LOADING
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // VISTA LAYERS LOADING, FILTERING & SEARCH
-// ══════════════════════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 async function initVista() {
   // Add India GeoJSON base map
   if (!vistaBaseMap && typeof map !== 'undefined') {
     try {
-      const geoRes = await fetch("/static/india_states.geojson");
+      const geoRes = await fetch("/static/india_states_simplified.geojson");
       if (geoRes.ok) {
         const geoData = await geoRes.json();
         vistaBaseMap = L.geoJSON(geoData, {
@@ -99,8 +188,7 @@ async function initVista() {
   // Also poll filter choices periodically every 15 seconds to detect newly scanned imagery
   setInterval(updateFilterChoices, 15000);
 
-  // Submit initial search to load all images on start
-  await searchImages();
+  // Images will load only when user clicks Search
 }
 
 async function updateFilterChoices() {
@@ -170,10 +258,29 @@ async function searchImages() {
   if (loading) loading.classList.remove("hidden");
   
   try {
+    // Hide layer operations and metadata until search is successful
+    const opsCard = document.getElementById("layerOpsCard");
+    const metaCard = document.getElementById("cardMeta");
+    if (opsCard) opsCard.style.display = "none";
+    if (metaCard) metaCard.style.display = "none";
+
     // Clear existing Leaflet layers
     vistaLayers.forEach(layer => map.removeLayer(layer));
     vistaLayers = [];
     vistaImages = [];
+    
+    // Hide timeline if it was open
+    const tlContainer = document.getElementById("timelineContainer");
+    if (tlContainer) {
+      tlContainer.style.display = "none";
+      if (window.timelinePlaybackInterval) {
+        clearInterval(window.timelinePlaybackInterval);
+      }
+      if (window.timelineHighlightLayer) {
+        map.removeLayer(window.timelineHighlightLayer);
+        window.timelineHighlightLayer = null;
+      }
+    }
     
     // Read search inputs
     const mission = document.getElementById("filterMission").value;
@@ -231,6 +338,7 @@ async function searchImages() {
         opacity: 1,
         tileSize: 256,
         keepBuffer: 4,
+        zIndex: 100,
       });
       
       layer.addTo(map);
@@ -246,7 +354,8 @@ async function searchImages() {
         default_assets: item.default_assets,
         assets: item.assets,
         bbox: item.bbox,
-        stac_url: item.links?.find(l => l.rel==="self")?.href || `http://localhost:8000/vista/stac/${item.name}`
+        stac_url: item.links?.find(l => l.rel==="self")?.href || `http://localhost:8000/vista/stac/${item.name}`,
+        metadata: item.metadata
       });
       
       if (item.bbox) {
@@ -255,6 +364,15 @@ async function searchImages() {
     }
     
     populateLayersList();
+    
+    const activeLayersCard = document.getElementById("cardActiveLayers");
+    if (activeLayersCard) {
+      activeLayersCard.style.display = vistaImages.length > 0 ? "block" : "none";
+    }
+    
+    if (vistaImages.length > 0) {
+      selectVistaImage(vistaImages[0]);
+    }
     
     if (firstBounds) {
       const [w, s, e, n] = firstBounds;
@@ -294,7 +412,7 @@ function populateLayersList() {
     div.style.marginBottom = "10px";
     div.style.padding = "8px";
     
-    const dateStr = imgObj.date ? imgObj.date.split("T")[0] : "—";
+    const dateStr = imgObj.date ? imgObj.date.split("T")[0] : "â";
     div.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <strong class="dataset-card__name" style="font-size:12px; color:var(--text-light); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:180px;">${imgObj.name}</strong>
@@ -306,7 +424,7 @@ function populateLayersList() {
         </button>
       </div>
       <div style="font-size:10px; color:var(--text-dim); line-height:1.4;">
-        Date: ${dateStr} · Cloud: ${imgObj.cloud.toFixed(1)}% · Res: ${imgObj.res}
+        Date: ${dateStr} Â· Cloud: ${imgObj.cloud.toFixed(1)}% Â· Res: ${imgObj.res}
       </div>
     `;
     
@@ -321,6 +439,10 @@ function populateLayersList() {
         imgObj.layer.addTo(map);
         this.style.opacity = "1";
       }
+    });
+    
+    div.addEventListener("click", () => {
+      selectVistaImage(imgObj, div);
     });
     
     vistaLayerList.appendChild(div);
@@ -373,6 +495,19 @@ async function selectVistaImage(imgObj, element) {
            window.draggedItem = null;
          });
          
+         item.addEventListener("click", (e) => {
+           const activeTab = document.getElementById("layerOperationSelect")?.value;
+           if (activeTab === "custom" && window.customScriptEditor) {
+             const pos = window.customScriptEditor.getPosition();
+             window.customScriptEditor.executeEdits("", [{
+                range: new window.monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+                text: `sample.${e.target.textContent}`,
+                forceMoveMarkers: true
+             }]);
+             window.customScriptEditor.focus();
+           }
+         });
+         
          palette.appendChild(item);
       });
       
@@ -415,16 +550,16 @@ async function selectVistaImage(imgObj, element) {
     if (!res.ok) return;
     const info = await res.json();
     
-    setText("metaWidth",   info.resolution ?? "—");
-    setText("metaHeight",  info.original_name ?? "—");
-    setText("metaBands",   info.bands ?? "—");
-    setText("metaCRS",     info.cog_path ?? "—");
-    setText("metaSize",    info.file ?? "—");
-    setText("metaOvr",     info.created_at ?? "—");
+    setText("metaWidth",   info.resolution ?? "â€”");
+    setText("metaHeight",  info.original_name ?? "â€”");
+    setText("metaBands",   info.bands ?? "â€”");
+    setText("metaCRS",     info.cog_path ?? "â€”");
+    setText("metaSize",    info.file ?? "â€”");
+    setText("metaOvr",     info.created_at ?? "â€”");
     setText("metaCenter",
       info.center
-        ? `${info.center.lat.toFixed(4)}°, ${info.center.lon.toFixed(4)}°`
-        : "—"
+        ? `${info.center.lat.toFixed(4)}Â°, ${info.center.lon.toFixed(4)}Â°`
+        : "â€”"
     );
     
     if (info.center) {
@@ -435,12 +570,54 @@ async function selectVistaImage(imgObj, element) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 // GLOBAL BAND ARITHMETIC APPLICATION
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 
 function resolveBand(bName) {
   if (!bName) return "";
+  
+  let mission = "";
+  if (window.currentImageObj && window.currentImageObj.metadata) {
+    mission = window.currentImageObj.metadata.mission || "";
+  }
+
+  // Sentinel-2 band designations to other missions' band mappings
+  if (mission === "Landsat") {
+    const landsatMap = {
+      "B01": "band1", // Coastal Aerosol
+      "B02": "band2", // Blue
+      "B03": "band3", // Green
+      "B04": "band4", // Red
+      "B05": "band5", // NIR (closest spectral approximation)
+      "B06": "band5",
+      "B07": "band5",
+      "B08": "band5", // NIR
+      "B8A": "band5", // Narrow NIR
+      "B09": "band9", // Cirrus
+      "B10": "band9", // Cirrus
+      "B11": "band6", // SWIR 1
+      "B12": "band7", // SWIR 2
+      "B1": "band1", "B2": "band2", "B3": "band3", "B4": "band4", "B5": "band5",
+      "B6": "band6", "B7": "band7", "B8": "band5", "B9": "band9", "B10": "band9", "B11": "band6", "B12": "band7"
+    };
+    const key = bName.toUpperCase();
+    if (landsatMap[key]) return landsatMap[key];
+  } else if (mission === "Resourcesat-2") {
+    const resourcesatMap = {
+      "B02": "band2", // Blue/Green
+      "B03": "band2", // Green
+      "B04": "band3", // Red
+      "B08": "band4", // NIR
+      "B8A": "band4", // NIR
+      "B11": "band5", // SWIR
+      "B12": "band5", // SWIR
+      "B2": "band2", "B3": "band2", "B4": "band3", "B8": "band4", "B11": "band5"
+    };
+    const key = bName.toUpperCase();
+    if (resourcesatMap[key]) return resourcesatMap[key];
+  }
+
   if (window.currentImageObj && window.currentImageObj.assets) {
     const keys = Object.keys(window.currentImageObj.assets);
     const norm = bName.replace(/^B0?/, "").toLowerCase();
@@ -453,11 +630,16 @@ function resolveBand(bName) {
 }
 
 async function applyVisualization() {
+  if (!vistaImages || vistaImages.length === 0) {
+    showToast("No active images loaded. Please search and load images first.", "error");
+    return;
+  }
+
   const loading = document.getElementById("loadingOverlay");
   if (loading) loading.classList.remove("hidden");
   
   try {
-    const activeTab = document.querySelector(".tab.active").getAttribute("data-tab");
+    const activeTab = document.getElementById("layerOperationSelect").value;
     let queryParams = "";
     
     if (activeTab === "composite") {
@@ -565,18 +747,20 @@ async function applyVisualization() {
 
       uniqueBands = [...new Set(uniqueBands)];
 
-      // Replace them in the expression string with bandXX for TiTiler
+      // Replace them in the expression string with resolved asset names for TiTiler
       let exprStr = formulaStr;
       uniqueBands.forEach(b => {
-        const assetName = b.replace("B", "band");
+        const assetName = resolveBand(b);
         exprStr = exprStr.replace(new RegExp(`\\b${b}\\b`, 'g'), assetName);
       });
       
-      const bidxQuery = uniqueBands.map(b => `asset_bidx=${b.replace("B", "band")}|1`).join("&");
+      const bidxQuery = uniqueBands.map(b => `asset_bidx=${resolveBand(b)}|1`).join("&");
       const bidxPart = bidxQuery ? `&${bidxQuery}` : "";
       
       const exprEncoded = encodeURIComponent(exprStr);
-      queryParams = `?expression=${exprEncoded}${bidxPart}&colormap_name=rdylgn&rescale=-1,1&asset_as_band=true`;
+      const rescaleMin = document.getElementById("formulaRescaleMin")?.value || "-1";
+      const rescaleMax = document.getElementById("formulaRescaleMax")?.value || "1";
+      queryParams = `?expression=${exprEncoded}${bidxPart}&colormap_name=rdylgn&rescale=${rescaleMin},${rescaleMax}&asset_as_band=true`;
     }
     
     currentQueryParams = queryParams;
@@ -602,9 +786,9 @@ async function applyVisualization() {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 // BACKEND STATUS POLLING
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 
 async function pollStatus() {
   try {
@@ -621,7 +805,7 @@ async function pollStatus() {
       bar.classList.remove("loading");
       bar.style.width = (data.progress || 0) + "%";
     }
-    document.getElementById("statusMsg").textContent = data.message || "—";
+    document.getElementById("statusMsg").textContent = data.message || "â€”";
 
     const dot = document.getElementById("statusDot");
     if (data.error)          dot.className = "card__dot error";
@@ -696,9 +880,9 @@ async function pollVistaStatus() {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 // GEOCODING SEARCH (Nominatim)
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 
 async function searchLocation(query) {
   if (!query.trim()) return;
@@ -740,18 +924,22 @@ async function searchLocation(query) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 // UI HELPERS
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 
 function updateZoomInfo() {
   if (!map) return;
-  document.getElementById("zoomLevel").textContent = map.getZoom();
+  const el = document.getElementById("zoomLevel");
+  if (el) el.textContent = map.getZoom();
 }
 
 function updateCoords(e) {
-  document.getElementById("cursorLat").textContent = e.latlng.lat.toFixed(5);
-  document.getElementById("cursorLon").textContent = e.latlng.lng.toFixed(5);
+  const latEl = document.getElementById("cursorLat");
+  const lonEl = document.getElementById("cursorLon");
+  if (latEl) latEl.textContent = e.latlng.lat.toFixed(5);
+  if (lonEl) lonEl.textContent = e.latlng.lng.toFixed(5);
 }
 
 function onMapClick(e) {
@@ -769,6 +957,7 @@ function onMapClick(e) {
 function updatePyramidLevel() {
   const z = map ? map.getZoom() : 0;
   const levels = document.querySelectorAll(".pyr-level");
+  if (levels.length === 0) return;
   levels.forEach(el => el.classList.remove("active"));
 
   if      (z <= 5)  levels[0].classList.add("active");
@@ -800,53 +989,77 @@ function showToast(msg, type = "info") {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 // BOOT
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 
 (async function boot() {
   initMap();
 
   // Initial checks and scan vista images
-  await Promise.all([pollStatus(), checkTiTiler(), pollVistaStatus(), initVista()]);
+  await Promise.all([pollStatus(), checkTiTiler(), initVista()]);
 
   // Start polling
   setInterval(pollStatus,    POLL_MS);
   setInterval(checkTiTiler,  POLL_MS * 2);
-  setInterval(pollVistaStatus, POLL_MS);
+
 
   showToast("EO Platform Ready (Vista Mode)", "info");
 })();
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 // TAB SWITCHING & DRAG-AND-DROP INITIALIZATION
-// ══════════════════════════════════════════════════════════════════════════════
+// â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Layer operations tabs
-  const tabs = document.querySelectorAll('.tab');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      tabs.forEach(t => {
-        t.classList.remove('active');
-        t.style.color = "#555";
-        t.style.border = "1px solid #222";
-        t.style.background = "transparent";
-      });
-      tab.classList.add('active');
-      tab.style.color = "#00e5ff";
-      tab.style.border = "1px solid #00e5ff";
-      tab.style.background = "rgba(0, 229, 255, 0.05)";
+  // Layer operations dropdown
+  const opSelect = document.getElementById('layerOperationSelect');
+  if (opSelect) {
+    // Force the dropdown back to default to prevent browser cache desync
+    opSelect.value = "composite";
+    
+    opSelect.addEventListener('change', (e) => {
+      const selected = e.target.value;
       
       // Switch content
       document.querySelectorAll(".tab-content").forEach(tc => tc.style.display = "none");
-      const target = document.getElementById("tab-" + tab.getAttribute("data-tab"));
+      const target = document.getElementById("tab-" + selected);
       if (target) target.style.display = "block";
+      
+      // Initialize Monaco if switching to custom
+      if (selected === "custom" && !window.customScriptEditor) {
+        if (typeof require !== 'undefined') {
+          require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+          require(['vs/editor/editor.main'], function() {
+            try {
+              window.customScriptEditor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: getTemplate('ndvi'),
+                language: 'javascript',
+                theme: 'vs-dark',
+                minimap: { enabled: false },
+                automaticLayout: true
+              });
+            } catch (err) {
+              console.error("Monaco editor failed to create:", err);
+            }
+          });
+        } else {
+          showToast("Code editor failed to load. Please refresh.", "error");
+        }
+      }
     });
-  });
+  }
 
   // Drag and Drop Logic
   window.draggedItem = null;
+
+  // Search submit
+  const btnSearch = document.getElementById("btnSearchSubmit");
+  if (btnSearch) {
+    btnSearch.addEventListener("click", () => {
+      searchImages();
+    });
+  }
 
   // For any static items (if they existed)
   document.querySelectorAll(".band-item").forEach(item => {
@@ -929,6 +1142,29 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // Auto-preset Rescale Min/Max based on formula type
+      const minInput = document.getElementById("formulaRescaleMin");
+      const maxInput = document.getElementById("formulaRescaleMax");
+      if (minInput && maxInput) {
+        if (expr.includes("/") && !expr.includes("+") && !expr.includes("-")) {
+          // Looks like a simple ratio (e.g. A/B)
+          minInput.value = "0";
+          maxInput.value = "3";
+        } else if (expr.includes("-") && expr.includes("+") && expr.includes("/")) {
+          // Looks like a normalized difference (e.g. (A-B)/(A+B))
+          minInput.value = "-1";
+          maxInput.value = "1";
+        } else if (!expr.includes("/")) {
+          // Simple difference or addition, Sentinel-2 band values can be large (0-10000)
+          minInput.value = "-4000";
+          maxInput.value = "4000";
+        } else {
+          // Fallback
+          minInput.value = "-1";
+          maxInput.value = "1";
+        }
+      }
+
       // Find all unique alphabetic variables (A-Z, a-z)
       const varRegex = /[a-zA-Z]+/g;
       const foundVars = expr.match(varRegex) || [];
@@ -992,6 +1228,18 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSearchSubmit.addEventListener("click", (e) => {
       e.preventDefault();
       searchImages();
+    });
+  }
+
+  const btnAnimate = document.getElementById("btnAnimate");
+  if (btnAnimate) {
+    btnAnimate.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!vistaImages || vistaImages.length === 0) {
+        showToast("Please search for images first.", "error");
+        return;
+      }
+      initTimeline();
     });
   }
 
@@ -1105,7 +1353,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   
-  // ─── DOWNLOAD WORKFLOW LOGIC ────────────────────────────────────────────────
+  // â”€â”€â”€ DOWNLOAD WORKFLOW LOGIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const btnMapDownload = document.getElementById("btnMapDownload");
   const modalCount = document.getElementById("modalDownloadCount");
   const inputCount = document.getElementById("inputDownloadCount");
@@ -1125,6 +1373,7 @@ document.addEventListener("DOMContentLoaded", () => {
     footprintLayers = [];
     modalCount.classList.add("hidden");
     modalConfirm.classList.add("hidden");
+    window.customScriptEditor = null;
   }
 
   if (btnMapDownload) {
@@ -1202,7 +1451,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const stacUrl = img.stac_url;
       let q = currentQueryParams;
       if (!q) {
-        q = "?asset_bidx=TCI|1,TCI|2,TCI|3&asset_as_band=true";
+        q = img.default_assets || "?asset_bidx=TCI|1,TCI|2,TCI|3&asset_as_band=true";
+        if (q.startsWith("&")) {
+          q = "?" + q.substring(1);
+        }
       }
       const previewUrl = `http://localhost:8001/stac/preview.png${q}&url=${encodeURIComponent(stacUrl)}&max_size=256`;
       
@@ -1290,62 +1542,406 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Mission filter listener for Layer Operations panel visibility
-  const filterMission = document.getElementById("filterMission");
-  if (filterMission) {
-    filterMission.addEventListener("change", (e) => {
-      const mission = e.target.value.toLowerCase();
-      const opsCard = document.getElementById("layerOpsCard");
-      const palette = document.getElementById("bandPalette");
-      if (!opsCard || !palette) return;
 
-      if (!mission) {
-        opsCard.style.display = "none";
-      } else {
-        opsCard.style.display = "block";
-        palette.innerHTML = "";
-        
-        let simulatedAssets = [];
-        if (mission.includes("landsat")) {
-          simulatedAssets = ["band1", "band2", "band3", "band4", "band5", "band6", "band7", "band8", "band9", "band10", "band11"];
-        } else if (mission.includes("sentinel")) {
-          simulatedAssets = ["band01", "band02", "band03", "band04", "band05", "band06", "band07", "band08", "band8a", "band09", "band10", "band11", "band12"];
-        }
-        
-        const colorMap = {
-          'band01': 'bg-purple', 'band1': 'bg-purple',
-          'band02': 'bg-blue',   'band2': 'bg-blue',
-          'band03': 'bg-green',  'band3': 'bg-green',
-          'band04': 'bg-orange', 'band4': 'bg-orange',
-          'band05': 'bg-red',    'band5': 'bg-red',
-          'band06': 'bg-dark-orange', 'band6': 'bg-dark-orange',
-          'band07': 'bg-dark-red',    'band7': 'bg-dark-red',
-          'band08': 'bg-red',    'band8': 'bg-red',
-          'band8a': 'bg-deep-red',
-          'band09': 'bg-brick-red', 'band9': 'bg-brick-red',
-          'band10': 'bg-violet', 'band11': 'bg-violet', 'band12': 'bg-brown'
-        };
-        
-        simulatedAssets.forEach(key => {
-           const item = document.createElement("div");
-           const bgClass = colorMap[key] || "bg-blue";
-           item.className = `band-item ${bgClass}`;
-           item.draggable = true;
-           item.textContent = key.toUpperCase().replace("BAND0", "B0").replace("BAND", "B");
-           
-           item.addEventListener("dragstart", (ev) => {
-             window.draggedItem = ev.target;
-             ev.dataTransfer.setData("text/plain", ev.target.textContent);
-             setTimeout(() => ev.target.style.opacity = '0.5', 0);
-           });
-           item.addEventListener("dragend", (ev) => {
-             setTimeout(() => ev.target.style.opacity = '1', 0);
-             window.draggedItem = null;
-           });
-           
-           palette.appendChild(item);
-        });
+  // Custom Script Logic
+  const selScriptTemplate = document.getElementById("selScriptTemplate");
+  const btnValidateScript = document.getElementById("btnValidateScript");
+  const btnApplyScript = document.getElementById("btnApplyScript");
+  window.customScriptEditor = null;
+
+  // Monaco initialized via dropdown change listener in the main event handler
+
+  const btnToggleTheme = document.getElementById("btnToggleTheme");
+  if (btnToggleTheme) {
+    btnToggleTheme.addEventListener("change", (e) => {
+      const isDark = e.target.checked;
+      if (window.customScriptEditor) {
+        monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
       }
     });
   }
+
+  const btnToggleEditor = document.getElementById("btnToggleEditor");
+  const editorWrapper = document.getElementById("editor-wrapper");
+  if (btnToggleEditor && editorWrapper) {
+    let isMaximized = false;
+    const placeholder = document.createElement('div');
+    editorWrapper.parentNode.insertBefore(placeholder, editorWrapper);
+
+    const editorHeader = editorWrapper.querySelector('.editor-header');
+    let isDragging = false;
+    let startX, startY, initialTop, initialLeft;
+
+    if (editorHeader) {
+      editorHeader.addEventListener('mousedown', (e) => {
+        if (!editorWrapper.classList.contains('maximized-editor')) return;
+        // Don't drag if clicking buttons or toggles
+        if (e.target.closest('button') || e.target.closest('.theme-switch')) return;
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = editorWrapper.getBoundingClientRect();
+        editorWrapper.style.setProperty('left', rect.left + 'px', 'important');
+        editorWrapper.style.setProperty('top', rect.top + 'px', 'important');
+        editorWrapper.style.setProperty('transform', 'none', 'important');
+        
+        initialLeft = rect.left;
+        initialTop = rect.top;
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        editorWrapper.style.setProperty('left', (initialLeft + dx) + 'px', 'important');
+        editorWrapper.style.setProperty('top', (initialTop + dy) + 'px', 'important');
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+    }
+
+    btnToggleEditor.addEventListener("click", () => {
+      isMaximized = !isMaximized;
+      if (isMaximized) {
+        document.body.appendChild(editorWrapper);
+        editorWrapper.classList.add("maximized-editor");
+        document.body.style.overflow = 'hidden';
+        if (editorHeader) editorHeader.style.cursor = 'move';
+      } else {
+        placeholder.parentNode.insertBefore(editorWrapper, placeholder);
+        editorWrapper.classList.remove("maximized-editor");
+        document.body.style.overflow = '';
+        if (editorHeader) editorHeader.style.cursor = 'default';
+        
+        // Reset inline styles
+        editorWrapper.style.left = '';
+        editorWrapper.style.top = '';
+        editorWrapper.style.transform = '';
+      }
+      if (window.customScriptEditor) {
+        setTimeout(() => window.customScriptEditor.layout(), 50);
+      }
+    });
+  }
+
+  function getTemplate(name) {
+    if (name === 'ndvi') {
+      return `//VERSION=DRISHTI-1\n\nfunction setup() {\n    return {\n        input: ["B04", "B08"],\n        output: { bands: 1 }\n    };\n}\n\nfunction evaluatePixel(sample) {\n    let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04);\n    return [ndvi];\n}`;
+    } else if (name === 'true_color') {
+      return `//VERSION=DRISHTI-1\n\nfunction setup() {\n    return {\n        input: ["B02", "B03", "B04"],\n        output: { bands: 3 }\n    };\n}\n\nfunction evaluatePixel(sample) {\n    return [\n        2.5 * sample.B04,\n        2.5 * sample.B03,\n        2.5 * sample.B02\n    ];\n}`;
+    } else if (name === 'ndwi') {
+      return `//VERSION=DRISHTI-1\n\nfunction setup() {\n    return {\n        input: ["B03", "B08"],\n        output: { bands: 1 }\n    };\n}\n\nfunction evaluatePixel(sample) {\n    let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08);\n    return [ndwi];\n}`;
+    }
+    return `//VERSION=DRISHTI-1\n\nfunction setup() {\n    return {\n        input: ["B04"],\n        output: { bands: 1 }\n    };\n}\n\nfunction evaluatePixel(sample) {\n    return [sample.B04];\n}`;
+  }
+
+  if (selScriptTemplate) {
+    selScriptTemplate.addEventListener('change', (e) => {
+      if (window.customScriptEditor) {
+        window.customScriptEditor.setValue(getTemplate(e.target.value));
+      }
+    });
+  }
+
+  if (btnValidateScript || btnApplyScript) {
+    const handleScript = async (apply = false) => {
+      if (!window.customScriptEditor) return;
+      const scriptCode = window.customScriptEditor.getValue();
+      try {
+        const loading = document.getElementById("loadingOverlay");
+        if (loading) loading.classList.remove("hidden");
+        
+        const res = await fetch(`${BACKEND_URL}/vista/custom-script/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script: scriptCode })
+        });
+        const data = await res.json();
+        
+        if (loading) loading.classList.add("hidden");
+        
+        if (!data.valid) {
+          showToast(`Script Error: ${data.error}`, "error");
+          return;
+        }
+        
+        if (apply) {
+          // Prepare TiTiler expression
+          let bidxQuery = data.bands.map(b => `asset_bidx=${resolveBand(b)}|1`).join("&");
+          if (bidxQuery) bidxQuery = `&${bidxQuery}`;
+          
+          // Replace generic band names (B04) in expression with resolved names (band04)
+          let exprStr = data.expression;
+          data.bands.forEach(b => {
+            const assetName = resolveBand(b);
+            exprStr = exprStr.replace(new RegExp(`\\b${b}\\b`, 'g'), assetName);
+          });
+          
+          const exprEncoded = encodeURIComponent(exprStr);
+          
+          let rescale = data.output_bands === 3 ? "0,3000" : "-1,1";
+          let cmapQuery = data.output_bands === 1 ? "&colormap_name=rdylgn" : "";
+          
+          currentQueryParams = `?expression=${exprEncoded}${bidxQuery}${cmapQuery}&rescale=${rescale}&asset_as_band=true`;
+          // Apply globally
+          vistaImages.forEach((imgObj) => {
+            let finalTileUrl = imgObj.base_tile_url;
+            finalTileUrl += currentQueryParams.replace("?", "&");
+            finalTileUrl += "&nodata=0";
+            imgObj.layer.setUrl(finalTileUrl);
+          });
+          showToast("Custom Script Applied!", "success");
+        } else {
+          showToast("Script is Valid!", "success");
+        }
+      } catch (e) {
+        showToast("Error validating script", "error");
+        const loading = document.getElementById("loadingOverlay");
+        if (loading) loading.classList.add("hidden");
+      }
+    };
+    
+    if (btnValidateScript) btnValidateScript.addEventListener('click', () => handleScript(false));
+    if (btnApplyScript) btnApplyScript.addEventListener('click', () => handleScript(true));
+  }
 });
+
+// --- TIMELINE LOGIC ---
+let timelineDates = [];
+let timelineCurrentIndex = -1;
+window.timelinePlaybackInterval = null;
+window.timelineHighlightLayer = null;
+
+function initTimeline() {
+  const container = document.getElementById("timelineContainer");
+  if (!container) return;
+  
+  container.style.display = "block";
+  
+  // Extract unique dates from vistaImages and group them
+  const dateMap = new Map();
+  vistaImages.forEach(img => {
+    // Expected format: YYYY-MM-DD or similar
+    const dStr = img.date;
+    if (!dateMap.has(dStr)) {
+      dateMap.set(dStr, []);
+    }
+    dateMap.get(dStr).push(img);
+  });
+  
+  // Sort dates chronologically
+  timelineDates = Array.from(dateMap.keys()).sort((a, b) => new Date(a) - new Date(b));
+  
+  if (timelineDates.length === 0) {
+    showToast("No imagery dates available to animate.", "error");
+    container.style.display = "none";
+    return;
+  }
+  
+  renderTimelineTicks();
+  
+  // Select the first date
+  selectTimelineDate(0);
+  
+  // Setup button listeners
+  document.getElementById("btnTimelinePrev").onclick = () => {
+    pauseTimeline();
+    if (timelineCurrentIndex > 0) selectTimelineDate(timelineCurrentIndex - 1);
+  };
+  document.getElementById("btnTimelineNext").onclick = () => {
+    pauseTimeline();
+    if (timelineCurrentIndex < timelineDates.length - 1) selectTimelineDate(timelineCurrentIndex + 1);
+  };
+  
+  const playBtn = document.getElementById("btnTimelinePlay");
+  playBtn.onclick = () => {
+    if (window.timelinePlaybackInterval) {
+      pauseTimeline();
+    } else {
+      playTimeline();
+    }
+  };
+}
+
+function renderTimelineTicks() {
+  const ticksContainer = document.getElementById("timelineTicks");
+  ticksContainer.innerHTML = "";
+  
+  if (timelineDates.length <= 1) return;
+  
+  // Enforce minimum width to prevent date overlap
+  const track = document.getElementById("timelineTrack");
+  if (track) {
+    const minSpacing = 70; // min px per date block
+    track.style.minWidth = `max(calc(100% - 60px), ${timelineDates.length * minSpacing}px)`;
+  }
+  
+  timelineDates.forEach((dateStr, index) => {
+    // Space dates evenly by index to prevent overlap
+    let pct = 0;
+    if (timelineDates.length > 1) {
+      pct = (index / (timelineDates.length - 1)) * 100;
+    }
+    
+    // Create tick
+    const tick = document.createElement("div");
+    tick.className = "timeline-tick";
+    tick.style.left = pct + "%";
+    tick.dataset.index = index;
+    
+    // Date Label
+    const dateObj = new Date(dateStr);
+    const shortDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const label = document.createElement("div");
+    label.className = "timeline-label";
+    label.textContent = shortDate;
+    tick.appendChild(label);
+    
+    // Tooltip
+    const tooltip = document.createElement("div");
+    tooltip.className = "timeline-tooltip";
+    
+    // Get corresponding images to show in tooltip
+    const imgs = vistaImages.filter(i => i.date === dateStr);
+    let tooltipText = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + "\n";
+    if (imgs.length > 0) {
+      tooltipText += imgs[0].name.split('_')[0] || "Satellite";
+      if (imgs[0].cloud !== undefined) tooltipText += `\nCloud Cover: ${imgs[0].cloud.toFixed(1)}%`;
+    }
+    tooltip.textContent = tooltipText;
+    tick.appendChild(tooltip);
+    
+    // Interactions
+    tick.onclick = () => {
+      pauseTimeline();
+      selectTimelineDate(index);
+    };
+    
+    // Temp highlight on hover
+    tick.onmouseenter = () => {
+      if (index !== timelineCurrentIndex) {
+        highlightFootprint(dateStr, true);
+      }
+    };
+    tick.onmouseleave = () => {
+      if (index !== timelineCurrentIndex) {
+        // Restore current
+        if (timelineCurrentIndex >= 0) {
+           highlightFootprint(timelineDates[timelineCurrentIndex], false);
+        } else {
+           if (window.timelineHighlightLayer) map.removeLayer(window.timelineHighlightLayer);
+        }
+      }
+    };
+    
+    ticksContainer.appendChild(tick);
+  });
+}
+
+function selectTimelineDate(index) {
+  if (index < 0 || index >= timelineDates.length) return;
+  timelineCurrentIndex = index;
+  const dateStr = timelineDates[index];
+  
+  // Update UI active states
+  const ticks = document.querySelectorAll(".timeline-tick");
+  ticks.forEach(t => t.classList.remove("active"));
+  
+  let targetPct = 0;
+  if (timelineDates.length > 1) {
+    targetPct = (index / (timelineDates.length - 1)) * 100;
+  }
+  
+  const activeTick = document.querySelector(`.timeline-tick[data-index="${index}"]`);
+  if (activeTick) {
+    activeTick.classList.add("active");
+    activeTick.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
+  
+  // Move pointer
+  const pointer = document.getElementById("timelinePointer");
+  if (pointer) {
+    pointer.style.left = targetPct + "%";
+  }
+  
+  // Update Text
+  const dateObj = new Date(dateStr);
+  document.getElementById("timelineCurrentDate").textContent = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  
+  const imgs = vistaImages.filter(i => i.date === dateStr);
+  if (imgs.length > 0) {
+    const img = imgs[0]; // pick first if multiple
+    let metaTxt = `${img.name.split('_')[0] || "Unknown Satellite"}`;
+    if (img.cloud !== undefined) metaTxt += ` • Cloud: ${img.cloud.toFixed(1)}%`;
+    if (img.res !== undefined) metaTxt += ` • Res: ${img.res}`;
+    document.getElementById("timelineMetadata").textContent = metaTxt;
+  }
+  
+  // Highlight Footprint
+  highlightFootprint(dateStr, false);
+}
+
+function highlightFootprint(dateStr, isTemporary) {
+  if (window.timelineHighlightLayer) {
+    map.removeLayer(window.timelineHighlightLayer);
+    window.timelineHighlightLayer = null;
+  }
+  
+  const imgs = vistaImages.filter(i => i.date === dateStr);
+  if (imgs.length === 0) return;
+  
+  // We can group multiple geometries if there are multiple images on same date
+  const features = imgs.filter(i => i.bbox).map(i => {
+    const [w, s, e, n] = i.bbox;
+    // Leaflet LatLng is [lat, lon]
+    return L.polygon([
+      [s, w],
+      [n, w],
+      [n, e],
+      [s, e]
+    ]);
+  });
+  
+  if (features.length > 0) {
+    window.timelineHighlightLayer = L.featureGroup(features).addTo(map);
+    // Apply styling via class (defined in CSS)
+    window.timelineHighlightLayer.eachLayer(layer => {
+      L.DomUtil.addClass(layer._path, 'timeline-highlight');
+      if (isTemporary) {
+        // slightly different styling for temporary? just use CSS or leave it.
+        layer.setStyle({ color: '#fff', weight: 1, dashArray: '5, 5' });
+      } else {
+        layer.setStyle({ color: '#00e5ff', weight: 3, fillOpacity: 0.1 });
+      }
+    });
+  }
+}
+
+function playTimeline() {
+  const playBtn = document.getElementById("btnTimelinePlay");
+  playBtn.innerHTML = "❚❚ PAUSE";
+  playBtn.classList.add("active");
+  
+  window.timelinePlaybackInterval = setInterval(() => {
+    let nextIndex = timelineCurrentIndex + 1;
+    if (nextIndex >= timelineDates.length) {
+      nextIndex = 0; // loop back to start
+    }
+    selectTimelineDate(nextIndex);
+  }, 1500); // 1.5 seconds interval
+}
+
+function pauseTimeline() {
+  if (window.timelinePlaybackInterval) {
+    clearInterval(window.timelinePlaybackInterval);
+    window.timelinePlaybackInterval = null;
+  }
+  const playBtn = document.getElementById("btnTimelinePlay");
+  playBtn.innerHTML = "▶ PLAY";
+  playBtn.classList.remove("active");
+}
+

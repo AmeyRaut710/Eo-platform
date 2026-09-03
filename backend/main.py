@@ -13,6 +13,11 @@ import httpx
 from processing import start_processing_thread, processing_status, BASE_DIR
 from db import init_db, get_all_images, get_image_by_id
 from vista import router as vista_router, start_vista_conversion_thread, get_db_conn, vista_status
+from custom_script import validate_and_parse_script, ScriptValidationError
+from pydantic import BaseModel
+
+class CustomScriptRequest(BaseModel):
+    script: str
 
 # Public URL for TiTiler so the frontend can reach it directly
 TITILER_PUBLIC_URL = os.environ.get("TITILER_URL", "http://localhost:8001")
@@ -376,3 +381,13 @@ def get_status():
 def get_vista_status_api():
     """Return current status of the Vista background conversion thread."""
     return vista_status
+
+@app.post("/vista/custom-script/validate", summary="Validate Custom Evalscript")
+def validate_custom_script(req: CustomScriptRequest):
+    try:
+        result = validate_and_parse_script(req.script)
+        return result
+    except ScriptValidationError as e:
+        return JSONResponse(status_code=400, content={"valid": False, "error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"valid": False, "error": "An unexpected error occurred during validation"})
