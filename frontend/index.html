@@ -428,6 +428,8 @@
         </div>
       </div>
 
+
+
       <!-- Metadata card -->
       <div class="card" id="cardMeta" style="display: none;">
         <div class="card__header">COG METADATA</div>
@@ -538,6 +540,23 @@
 
   <!-- Monaco Editor Loader (Loaded after Leaflet to prevent AMD define conflict) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
+  <!-- ─── FLOATING PROCESSING FEEDBACK ──────────────────────────────────────── -->
+  <div id="floatingProcessingContainer" style="position: fixed; bottom: 20px; left: 340px; z-index: 9999; width: 300px; display: flex; flex-direction: column; gap: 10px; pointer-events: none;">
+    <!-- Processing Queue -->
+    <div class="card" id="cardProcessingQueue" style="display: none; pointer-events: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+      <div class="card__header" style="color: #00e5ff;">PROCESSING QUEUE</div>
+      <div class="card__body" id="processingQueueBody" style="max-height: 150px; overflow-y: auto; font-size: 11px;">
+      </div>
+    </div>
+
+    <!-- Errors -->
+    <div class="card" id="cardProcessingErrors" style="display: none; border-color: rgba(255, 68, 68, 0.4); pointer-events: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+      <div class="card__header" style="color: #ff4444;">RECENT ERRORS</div>
+      <div class="card__body" id="processingErrorsBody" style="max-height: 150px; overflow-y: auto; color: #ff6b6b; font-size: 11px;">
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js?v=2.9"></script>
 </body>

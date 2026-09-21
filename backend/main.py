@@ -26,6 +26,10 @@ TITILER_INTERNAL_URL = os.environ.get("TITILER_INTERNAL_URL", "http://titiler:80
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Lifespan event handler for the FastAPI application.
+    Executes startup logic (DB initialization, background threads) and teardown logic.
+    """
     # Startup
     import anyio
     limiter = anyio.to_thread.current_default_thread_limiter()
@@ -45,6 +49,7 @@ async def lifespan(app: FastAPI):
     pass
 
 # ── App ───────────────────────────────────────────────────────────────────────
+# Main FastAPI application instance setup
 app = FastAPI(
     title="EO Platform API",
     description="Earth Observation Satellite Image Visualization Backend",
@@ -53,6 +58,7 @@ app = FastAPI(
 )
 
 # ── CORS (allow all origins for local dev) ────────────────────────────────────
+# Configures Cross-Origin Resource Sharing so the separate frontend can communicate with the backend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

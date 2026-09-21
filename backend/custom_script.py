@@ -1,12 +1,23 @@
 import re
 
+# This module validates and parses user-supplied JavaScript-like snippets 
+# allowing clients to define custom math expressions for band algebra (e.g., NDVI).
+
 class ScriptValidationError(Exception):
+    """Custom exception raised when a user script violates security or syntax rules."""
     pass
 
 def validate_and_parse_script(script_text: str):
+    """
+    Validates a custom script against a list of banned JS keywords to prevent malicious execution
+    (e.g., fetch, document) and parses the input bands and evaluatePixel function.
+    
+    Returns a dictionary of parsed expressions ready for TiTiler consumption.
+    """
     if "//VERSION=DRISHTI-1" not in script_text:
         raise ScriptValidationError("Missing //VERSION=DRISHTI-1")
         
+    # Security: Ban typical browser APIs and unsafe JS constructs.
     banned = ["window", "document", "fetch", "XMLHttpRequest", "eval", "import", "require", "setTimeout", "setInterval", "=>"]
     for b in banned:
         if b == "=>":
@@ -15,7 +26,7 @@ def validate_and_parse_script(script_text: str):
         elif re.search(rf'\b{b}\b', script_text):
             raise ScriptValidationError(f"Dangerous or unsupported term used: {b}")
             
-    # Extract setup input
+    # Extract setup input array to know which bands the script requires
     input_match = re.search(r'input:\s*\[(.*?)\]', script_text)
     if not input_match:
         raise ScriptValidationError("Could not parse setup() input array")
@@ -26,21 +37,21 @@ def validate_and_parse_script(script_text: str):
     if not input_bands:
         raise ScriptValidationError("No input bands specified")
         
-    # Extract output bands count
+    # Extract expected output band count to validate return statement
     output_match = re.search(r'output:\s*\{\s*bands:\s*(\d+)\s*\}', script_text)
     output_bands_count = 1
     if output_match:
         output_bands_count = int(output_match.group(1))
         
-    # Extract evaluatePixel body
+    # Extract evaluatePixel body where the actual band math occurs
     eval_match = re.search(r'function\s+evaluatePixel\s*\([^)]*\)\s*\{(.*)\}', script_text, re.DOTALL)
     if not eval_match:
         raise ScriptValidationError("Could not find function evaluatePixel(sample)")
         
     body = eval_match.group(1)
     
-    # Parse assignments: let varName = expression;
-    # This regex handles basic assignments across lines
+    # Parse intermediate variable assignments: let varName = expression;
+    # This allows users to write multi-line scripts that we collapse into a single expression for TiTiler
     assignments = re.findall(r'(?:let|var|const)\s+([a-zA-Z0-9_]+)\s*=\s*(.*?);', body, re.DOTALL)
     variables = {}
     for var_name, expr in assignments:

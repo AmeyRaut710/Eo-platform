@@ -12,26 +12,34 @@
 
 "use strict";
 
+// ── Global Variables ──────────────────────────────────────────────────────────
+// These constants define the backend APIs and default map properties.
 const BACKEND_URL  = "http://localhost:8000";
 const TITILER_URL  = "http://localhost:8001";
 const INDIA    = [20.5937, 78.9629];
 const DEFAULT_ZOOM = 5;
-const POLL_MS      = 4000;  // status poll interval
+const POLL_MS      = 4000;  // interval for polling backend conversion status
 
+// Map instance and state trackers for loaded layers and active images
 let map;
 let vistaLayers = [];
 let vistaImages = [];
 let vistaBaseMap = null;
 let currentQueryParams = ""; // Stores global band arithmetic URL parameters
 
+// State for the interactive download/export mode
 let isDownloadMode = false;
 let imagesToDownload = 0;
 let selectedDownloadImages = [];
 let footprintLayers = [];
 
-// MAP INITIALISATION
+// ── Map Initialization ───────────────────────────────────────────────────────
 
 function initMap() {
+  /*
+  Initializes the main Leaflet map centered over India.
+  Sets up the default base layers (Esri Satellite, Bhuvan) and overlay controls.
+  */
   map = L.map("map", {
     center: INDIA,
     zoom: DEFAULT_ZOOM,
@@ -817,6 +825,7 @@ async function checkTiTiler() {
 }
 
 let vistaBannerTimeout = null;
+let queueBannerTimeout = null;
 
 async function pollVistaStatus() {
   try {
@@ -828,6 +837,56 @@ async function pollVistaStatus() {
     const spinner = document.getElementById("vistaSpinner");
     const text = document.getElementById("vistaStatusText");
     
+    // Render Active Tasks
+    const qCard = document.getElementById("cardProcessingQueue");
+    const qBody = document.getElementById("processingQueueBody");
+    if (data.converting && data.active_tasks && data.active_tasks.length > 0) {
+      qCard.style.display = "block";
+      qCard.style.borderColor = "rgba(0, 229, 255, 0.4)";
+      qCard.querySelector(".card__header").textContent = "PROCESSING QUEUE";
+      qCard.querySelector(".card__header").style.color = "#00e5ff";
+      
+      if (queueBannerTimeout) {
+        clearTimeout(queueBannerTimeout);
+        queueBannerTimeout = null;
+      }
+      
+      qBody.innerHTML = `<div style="display:flex; align-items:center; margin-bottom:5px;">
+           <span class="loading-spinner" style="width:12px; height:12px; border-width:2px; margin-right:8px; display:inline-block; border-radius:50%; border:2px solid rgba(0,229,255,0.3); border-top-color:#00e5ff; animation:spin 1s linear infinite;"></span>
+           <span>${data.message}</span>
+         </div>`;
+    } else if (data.message === "Conversion is over") {
+      qCard.style.display = "block";
+      qCard.style.borderColor = "rgba(0, 255, 170, 0.4)";
+      qCard.querySelector(".card__header").textContent = "SUCCESS";
+      qCard.querySelector(".card__header").style.color = "#00ffaa";
+      
+      qBody.innerHTML = `<div style="display:flex; align-items:center; margin-bottom:5px; color:#00ffaa;">
+           <span style="margin-right:8px;">✓</span>
+           <span>Uploading is done</span>
+         </div>`;
+         
+      if (!queueBannerTimeout) {
+        queueBannerTimeout = setTimeout(() => {
+          qCard.style.display = "none";
+        }, 5000);
+      }
+    } else {
+      qCard.style.display = "none";
+    }
+
+    // Render Errors
+    const eCard = document.getElementById("cardProcessingErrors");
+    const eBody = document.getElementById("processingErrorsBody");
+    if (data.errors && data.errors.length > 0) {
+      eCard.style.display = "block";
+      eBody.innerHTML = data.errors.map(err => 
+        `<div style="margin-bottom:5px; padding-bottom:5px; border-bottom:1px solid rgba(255,68,68,0.2);">• ${err}</div>`
+      ).join('');
+    } else {
+      eCard.style.display = "none";
+    }
+
     if (data.converting) {
       banner.style.display = "flex";
       spinner.style.display = "inline-block";
@@ -864,7 +923,7 @@ async function pollVistaStatus() {
       }
     }
   } catch (e) {
-    // silently ignore errors
+    console.error("pollVistaStatus error:", e);
   }
 }
 

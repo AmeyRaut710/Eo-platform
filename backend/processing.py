@@ -119,7 +119,14 @@ def calculate_indices(display_name, cogs_dir):
         log.error(f"Error calculating indices: {e}")
 
 def scan_and_process():
-    """Infinite loop that scans data directory and processes new TIFFs and SAFE dirs."""
+    """
+    Infinite loop that scans the 'data' directory for new TIFFs and Sentinel-2 SAFE folders.
+    If an unprocessed image is found, this function:
+    1. Identifies the specific band files (B01, B02, ..., B12, TCI).
+    2. Uses rio_cogeo to convert raw files into Cloud Optimized GeoTIFFs (COGs) with internal overviews.
+    3. Triggers MinIO upload for each converted band.
+    4. Caches the processing state into the local database (db.json).
+    """
     global processing_status
     data_path = Path(DATA_DIR)
     
@@ -143,12 +150,12 @@ def scan_and_process():
         try:
             items_to_process = []
             
-            # 1. Find .SAFE directories (Sentinel-2)
+            # 1. Find .SAFE directories (typical Sentinel-2 unzipped format)
             safe_dirs = [p for p in data_path.rglob("*.SAFE") if p.is_dir()]
             for sdir in safe_dirs:
                 items_to_process.append({"type": "safe", "path": sdir, "name": sdir.name})
                 
-            # 2. Find individual .tif files (excluding cogs dir)
+            # 2. Find individual .tif or .tiff files (excluding the generated COGs output dir)
             tif_files = [p for p in data_path.rglob("*.tif") if p.is_file()] + [p for p in data_path.rglob("*.tiff") if p.is_file()]
             for tfile in tif_files:
                 if str(COGS_DIR) in str(tfile): continue

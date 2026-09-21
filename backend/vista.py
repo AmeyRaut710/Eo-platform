@@ -666,7 +666,9 @@ def get_vista_image_info(image_name: str, request: Request):
 vista_status = {
     "converting": False,
     "message": "Idle",
-    "progress": 0
+    "progress": 0,
+    "active_tasks": [],
+    "errors": []
 }
 
 def process_dataset(folder_path, image_name, data_type, metadata_file):
@@ -690,6 +692,8 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
         
     vista_status["converting"] = True
     vista_status["message"] = f"Converting {image_name} ({data_type})..."
+    if image_name not in vista_status["active_tasks"]:
+        vista_status["active_tasks"].append(image_name)
     print(f"Vista Scanner: Found new {data_type} dataset {image_name}. Processing...")
     
     if data_type == "Sentinel-2":
@@ -702,7 +706,14 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
         metadata = extract_generic_metadata(metadata_file)
         
     if not metadata:
-        print(f"Vista Scanner: Failed to extract metadata for {image_name}")
+        err_msg = f"Failed to extract metadata for {image_name}"
+        print(f"Vista Scanner: {err_msg}")
+        vista_status["errors"].insert(0, err_msg)
+        vista_status["errors"] = vista_status["errors"][:10]  # keep last 10
+        if image_name in vista_status["active_tasks"]:
+            vista_status["active_tasks"].remove(image_name)
+        vista_status["converting"] = False
+        vista_status["message"] = "Idle"
         return False
         
     if data_type == "Sentinel-2":
@@ -820,7 +831,10 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
                     )
                     print(f"Vista Scanner: Converted in {time.time() - t0:.2f} seconds.")
                 except Exception as ex:
-                    print(f"Vista Scanner: Failed to convert: {ex}")
+                    err_msg = f"Failed to convert {os.path.basename(file_str)}: {ex}"
+                    print(f"Vista Scanner: {err_msg}")
+                    vista_status["errors"].insert(0, err_msg)
+                    vista_status["errors"] = vista_status["errors"][:10]
                     processed_count += 1
                     continue
                     
@@ -829,14 +843,24 @@ def process_dataset(folder_path, image_name, data_type, metadata_file):
             s3_path = upload_cog_to_minio(cog_path, image_name, band_key)
             cog_files[band_key] = s3_path
         except Exception as ex:
-            print(f"Vista Scanner: Failed uploading to MinIO: {ex}")
+            err_msg = f"Failed uploading {band_key} to MinIO for {image_name}: {ex}"
+            print(f"Vista Scanner: {err_msg}")
+            vista_status["errors"].insert(0, err_msg)
+            vista_status["errors"] = vista_status["errors"][:10]
             processed_count += 1
             continue
             
         processed_count += 1
             
     if not cog_files:
-        print(f"Vista Scanner: No bands successfully processed for {image_name}")
+        err_msg = f"No bands successfully processed for {image_name}"
+        print(f"Vista Scanner: {err_msg}")
+        vista_status["errors"].insert(0, err_msg)
+        vista_status["errors"] = vista_status["errors"][:10]
+        if image_name in vista_status["active_tasks"]:
+            vista_status["active_tasks"].remove(image_name)
+        vista_status["converting"] = False
+        vista_status["message"] = "Idle"
         return False
         
     # Create STAC Item

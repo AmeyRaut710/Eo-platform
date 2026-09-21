@@ -2,9 +2,17 @@ import os
 import json
 import datetime
 
+# This module provides a simple file-based JSON database fallback.
+# While pgSTAC is used for geospatial metadata, this local db.json
+# is maintained for legacy compatibility and simpler application state tracking.
+
 DB_FILE = os.path.join(os.path.dirname(__file__), 'db.json')
 
 def load_db():
+    """
+    Reads and parses the JSON database file from disk.
+    Converts string keys back to integers for consistent ID lookups.
+    """
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, 'r') as f:
@@ -15,14 +23,17 @@ def load_db():
     return {}
 
 def save_db(db_data):
+    """Writes the given dictionary to the JSON database file with formatting."""
     with open(DB_FILE, 'w') as f:
         json.dump(db_data, f, indent=4)
 
 def init_db():
+    """Initializes an empty JSON database if it doesn't already exist."""
     if not os.path.exists(DB_FILE):
         save_db({})
 
 def get_all_images():
+    """Returns a list of all image metadata records stored in the local database."""
     db_data = load_db()
     return list(db_data.values())
 
@@ -38,6 +49,7 @@ def is_image_processed(name):
     return False
 
 def get_image_by_name(name):
+    """Looks up and returns an image record by its original directory/file name."""
     db_data = load_db()
     for img in db_data.values():
         if img["original_name"] == name:
@@ -45,6 +57,10 @@ def get_image_by_name(name):
     return None
 
 def reserve_image(name):
+    """
+    Reserves a new ID for an image in the database before processing starts.
+    This helps track the state of images as they are being converted to COGs.
+    """
     db_data = load_db()
     image_id = max(db_data.keys()) + 1 if db_data else 1
     display_name = f"img{image_id}"

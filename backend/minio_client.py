@@ -4,13 +4,16 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 from pathlib import Path
 
+# This module handles the connection to the MinIO (S3-compatible) object storage system.
+# MinIO is used to store the heavy Cloud Optimized GeoTIFF (COG) image files.
+
 # Configure S3 environment variables programmatically so that current process
 # and any spawned subprocesses (like TiTiler or GDAL) inherit them.
 S3_KEYS = {
     "AWS_ACCESS_KEY_ID": "admin",
     "AWS_SECRET_ACCESS_KEY": "admin123",
-    "AWS_S3_ENDPOINT": "localhost:9000",
-    "AWS_ENDPOINT_URL": "http://localhost:9000",
+    "AWS_S3_ENDPOINT": os.environ.get("AWS_S3_ENDPOINT", "localhost:9000"),
+    "AWS_ENDPOINT_URL": os.environ.get("AWS_ENDPOINT_URL", "http://localhost:9000"),
     "AWS_VIRTUAL_HOSTING": "FALSE",
     "AWS_HTTPS": "NO"
 }
@@ -18,12 +21,17 @@ S3_KEYS = {
 for k, v in S3_KEYS.items():
     os.environ[k] = v
 
+# BUCKET_NAME defines the primary bucket where all satellite imagery will be stored.
 BUCKET_NAME = "eo-platform"
 
 def get_s3_client():
+    """
+    Initializes and returns a boto3 client configured to connect to the local MinIO instance.
+    Uses the 'admin'/'admin123' credentials and s3v4 signature version.
+    """
     return boto3.client(
         "s3",
-        endpoint_url="http://localhost:9000",
+        endpoint_url=os.environ.get("AWS_ENDPOINT_URL", "http://localhost:9000"),
         aws_access_key_id="admin",
         aws_secret_access_key="admin123",
         config=Config(signature_version="s3v4"),
@@ -31,6 +39,10 @@ def get_s3_client():
     )
 
 def init_minio():
+    """
+    Initializes the MinIO environment by creating the necessary bucket ('eo-platform') 
+    if it doesn't already exist. Handles typical bucket-exists exceptions safely.
+    """
     s3 = get_s3_client()
     try:
         s3.create_bucket(Bucket=BUCKET_NAME)
@@ -44,8 +56,16 @@ def init_minio():
 
 def upload_cog_to_minio(local_path: str, dataset_name: str, band_name: str) -> str:
     """
-    Uploads a COG file to MinIO under the prefix Sentinel2/{dataset_name}/{band_name}.tif
-    Returns the s3:// path. Skips upload if the object already exists.
+    Uploads a local Cloud Optimized GeoTIFF (COG) file to the MinIO storage.
+    Organizes the file into a logical folder structure: Sentinel2/{dataset_name}/{band_name}.tif
+    
+    Args:
+        local_path: The physical path to the file on the backend server.
+        dataset_name: The unique ID of the satellite dataset (e.g., tile ID).
+        band_name: The specific band name (e.g., band04, tci).
+        
+    Returns:
+        The 's3://...' URI path to the uploaded object. Skips upload if the object already exists.
     """
     s3 = get_s3_client()
     object_name = f"Sentinel2/{dataset_name}/{band_name}.tif"

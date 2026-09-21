@@ -1,26 +1,42 @@
 import json
 import psycopg2
 
+# This module manages all interactions with the PostgreSQL database.
+# The database uses the pgSTAC schema extension to store geospatial metadata
+# conforming to the Spatiotemporal Asset Catalog (STAC) specification.
+
+import os
+
 def get_db_conn():
+    """
+    Establishes and returns a connection to the local PostgreSQL database.
+    This database must have the pgSTAC schema installed.
+    """
     return psycopg2.connect(
-        host="localhost",
+        host=os.environ.get("DB_HOST", "localhost"),
         port=5432,
-        user="eo_user",
-        password="eo_password",
-        database="eo_platform"
+        user=os.environ.get("DB_USER", "eo_user"),
+        password=os.environ.get("DB_PASS", "eo_password"),
+        database=os.environ.get("DB_NAME", "eo_platform")
     )
 
 def _row_to_stac_item(row):
-    """Convert a DB row (id, collection, geom_json, content) to a full STAC Item dict."""
+    """
+    Helper function: Converts a raw database row into a fully compliant STAC Item JSON dictionary.
+    Merges the separated ID, Collection, and Geometry fields back into the main metadata block.
+    """
     item_id, collection, geom_str, content = row
     item = dict(content)
     item["id"] = item_id
     item["type"] = "Feature"
     item["stac_version"] = "1.0.0"
     item["collection"] = collection
+    
+    # Parse GeoJSON geometry string back to a dictionary if it exists
     if geom_str:
         item["geometry"] = json.loads(geom_str)
-    # Ensure links list exists (required by some STAC consumers)
+        
+    # Ensure links list exists (required by some STAC consumers and the specification)
     if "links" not in item:
         item["links"] = []
     return item
@@ -92,20 +108,31 @@ def init_pgstac():
         print("pgSTAC Initialization Warning:", e)
 
 def register_stac_item(item_dict: dict):
+    """
+    Registers a new STAC item in the pgSTAC database.
+    If an item with the same ID already exists, it deletes the old one first to perform an upsert.
+    """
     conn = get_db_conn()
     conn.autocommit = True
     try:
         with conn.cursor() as cur:
+            # Check for existing item
             cur.execute("SELECT id FROM pgstac.items WHERE id = %s;", (item_dict["id"],))
             if cur.fetchone() is not None:
+                # Delete existing to avoid duplication conflicts
                 cur.execute("DELETE FROM pgstac.items WHERE id = %s;", (item_dict["id"],))
+                
+            # Insert the STAC item using pgSTAC's built-in creation function
             cur.execute("SELECT pgstac.create_item(%s::jsonb);", (json.dumps(item_dict),))
             print(f"pgSTAC: Registered STAC Item '{item_dict['id']}' successfully.")
     finally:
         conn.close()
 
 def search_stac_items(filters: dict):
-    """Query pgSTAC items, returning full STAC Item dicts (with id, geometry merged)."""
+    """
+    Queries the pgSTAC items table based on dynamic filters from the frontend.
+    Returns a list of fully constructed STAC Item dictionaries.
+    """
     conn = get_db_conn()
     query = "SELECT id, collection, ST_AsGeoJSON(geometry), content FROM pgstac.items WHERE 1=1"
     params = []
