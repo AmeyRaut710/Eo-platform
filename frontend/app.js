@@ -676,21 +676,18 @@ async function applyVisualization() {
         const an3 = resolveBand(n3);
         const an4 = resolveBand(n4);
         
-        if (n1 === "B08" && n2 === "B04" && n3 === "B08" && n4 === "B04") {
-          expr = encodeURIComponent(`(${an1}-${an2})/(${an1}+${an2})`);
-          queryParams = `?expression=${expr}&asset_bidx=${an1}|1&asset_bidx=${an2}|1&colormap_name=rdylgn&rescale=-1,1&asset_as_band=true`;
-        } else if (n1 === "B03" && n2 === "B08" && n3 === "B03" && n4 === "B08") {
-          expr = encodeURIComponent(`(${an1}-${an2})/(${an1}+${an2})`);
-          queryParams = `?expression=${expr}&asset_bidx=${an1}|1&asset_bidx=${an2}|1&colormap_name=rdylgn&rescale=-1,1&asset_as_band=true`;
-        } else {
-          const uniqueAssets = [...new Set([an1, an2, an3, an4])];
-          const bidxQuery = uniqueAssets.map(a => `asset_bidx=${a}|1`).join("&");
-          
-          expr = encodeURIComponent(`(${an1}-${an2})/(${an3}+${an4})`);
-          rescale = "-1,1";
-          const cmap = "rdylgn";
-          queryParams = `?expression=${expr}&${bidxQuery}&colormap_name=${cmap}&rescale=${rescale}&asset_as_band=true`;
-        }
+        const uniqueAssets = [...new Set([an1, an2, an3, an4])];
+        const assetsQuery = uniqueAssets.map(a => `assets=${a}`).join("&");
+        const bidxQuery = uniqueAssets.map(a => `asset_bidx=${a}|1`).join("&");
+        const bn1 = `b${uniqueAssets.indexOf(an1)+1}`;
+        const bn2 = `b${uniqueAssets.indexOf(an2)+1}`;
+        const bn3 = `b${uniqueAssets.indexOf(an3)+1}`;
+        const bn4 = `b${uniqueAssets.indexOf(an4)+1}`;
+        
+        expr = encodeURIComponent(`(${bn1}-${bn2})/(${bn3}+${bn4})`);
+        rescale = "-1,1";
+        const cmap = "rdylgn";
+        queryParams = `?${assetsQuery}&expression=${expr}&${bidxQuery}&colormap_name=${cmap}&rescale=${rescale}&asset_as_band=true`;
       } else {
         const r1 = document.getElementById("drop-idx-r1").textContent.trim() || "B08";
         const r2 = document.getElementById("drop-idx-r2").textContent.trim() || "B04";
@@ -699,12 +696,15 @@ async function applyVisualization() {
         const ar2 = resolveBand(r2);
         
         const uniqueAssets = [...new Set([ar1, ar2])];
+        const assetsQuery = uniqueAssets.map(a => `assets=${a}`).join("&");
         const bidxQuery = uniqueAssets.map(a => `asset_bidx=${a}|1`).join("&");
+        const br1 = `b${uniqueAssets.indexOf(ar1)+1}`;
+        const br2 = `b${uniqueAssets.indexOf(ar2)+1}`;
         
-        expr = encodeURIComponent(`(${ar1}/${ar2})`);
+        expr = encodeURIComponent(`(${br1}/${br2})`);
         rescale = "0,3";
         const cmap = "rdylgn";
-        queryParams = `?expression=${expr}&${bidxQuery}&colormap_name=${cmap}&rescale=${rescale}&asset_as_band=true`;
+        queryParams = `?${assetsQuery}&expression=${expr}&${bidxQuery}&colormap_name=${cmap}&rescale=${rescale}&asset_as_band=true`;
       }
     } else if (activeTab === "formula") {
       let formulaStr = document.getElementById("formulaInput").value.trim();
@@ -745,20 +745,22 @@ async function applyVisualization() {
 
       uniqueBands = [...new Set(uniqueBands)];
 
-      // Replace them in the expression string with resolved asset names for TiTiler
+      // Replace them in the expression string with b{index} for TiTiler
       let exprStr = formulaStr;
       uniqueBands.forEach(b => {
-        const assetName = resolveBand(b);
-        exprStr = exprStr.replace(new RegExp(`\\b${b}\\b`, 'g'), assetName);
+        const bIndex = `b${uniqueBands.indexOf(b)+1}`;
+        exprStr = exprStr.replace(new RegExp(`\\b${b}\\b`, 'g'), bIndex);
       });
       
+      const assetsQuery = uniqueBands.map(b => `assets=${resolveBand(b)}`).join("&");
       const bidxQuery = uniqueBands.map(b => `asset_bidx=${resolveBand(b)}|1`).join("&");
       const bidxPart = bidxQuery ? `&${bidxQuery}` : "";
+      const assetsPart = assetsQuery ? `&${assetsQuery}` : "";
       
       const exprEncoded = encodeURIComponent(exprStr);
       const rescaleMin = document.getElementById("formulaRescaleMin")?.value || "-1";
       const rescaleMax = document.getElementById("formulaRescaleMax")?.value || "1";
-      queryParams = `?expression=${exprEncoded}${bidxPart}&colormap_name=rdylgn&rescale=${rescaleMin},${rescaleMax}&asset_as_band=true`;
+      queryParams = `?expression=${exprEncoded}${assetsPart}${bidxPart}&colormap_name=rdylgn&rescale=${rescaleMin},${rescaleMax}&asset_as_band=true`;
     }
     
     currentQueryParams = queryParams;
@@ -1712,19 +1714,22 @@ document.addEventListener("DOMContentLoaded", () => {
           let bidxQuery = data.bands.map(b => `asset_bidx=${resolveBand(b)}|1`).join("&");
           if (bidxQuery) bidxQuery = `&${bidxQuery}`;
           
-          // Replace generic band names (B04) in expression with resolved names (band04)
+          // Replace generic band names (B04) in expression with b{index} for TiTiler
           let exprStr = data.expression;
           data.bands.forEach(b => {
-            const assetName = resolveBand(b);
-            exprStr = exprStr.replace(new RegExp(`\\b${b}\\b`, 'g'), assetName);
+            const bIndex = `b${data.bands.indexOf(b)+1}`;
+            exprStr = exprStr.replace(new RegExp(`\\b${b}\\b`, 'g'), bIndex);
           });
+          
+          let assetsQuery = data.bands.map(b => `assets=${resolveBand(b)}`).join("&");
+          if (assetsQuery) assetsQuery = `&${assetsQuery}`;
           
           const exprEncoded = encodeURIComponent(exprStr);
           
           let rescale = data.output_bands === 3 ? "0,3000" : "-1,1";
           let cmapQuery = data.output_bands === 1 ? "&colormap_name=rdylgn" : "";
           
-          currentQueryParams = `?expression=${exprEncoded}${bidxQuery}${cmapQuery}&rescale=${rescale}&asset_as_band=true`;
+          currentQueryParams = `?expression=${exprEncoded}${assetsQuery}${bidxQuery}${cmapQuery}&rescale=${rescale}&asset_as_band=true`;
           // Apply globally
           vistaImages.forEach((imgObj) => {
             let finalTileUrl = imgObj.base_tile_url;
