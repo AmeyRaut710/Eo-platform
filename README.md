@@ -261,6 +261,7 @@ If you are running this project on a new system for the first time, please follo
 1. **Install Prerequisites**: Ensure you have **Docker Desktop** installed and running. Also, ensure **Python** (3.8+) is installed and added to your system `PATH`.
 2. **Initialize Docker Containers**: Open a terminal in the project root folder and run the following command to download and create the necessary database and storage containers:
    ```bash
+   docker volume create ISRO
    docker-compose up -d
    ```
    *(You only need to do this step once on a new machine.)*
@@ -271,3 +272,19 @@ If you are running this project on a new system for the first time, please follo
    - Launch the TiTiler and FastAPI backend servers
 
 Once started, the backend API will be available at `http://localhost:8000` and the TiTiler endpoint at `http://localhost:8001`.
+
+# Docker DNS ISSUE
+{
+  "builder": {
+    "gc": {
+      "defaultKeepStorage": "20GB",
+      "enabled": true
+    }
+  },
+  "experimental": false,
+  "dns": ["8.8.8.8", "8.8.4.4"]
+}
+
+
+# Input image folder name :
+vista_data
